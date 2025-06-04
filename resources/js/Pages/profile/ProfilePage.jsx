@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import MainLayout from "../../Layouts/MainLayout";
 import { router } from "@inertiajs/react";
 import {
     FiActivity,
@@ -15,6 +14,7 @@ import {
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { Head } from "@inertiajs/react";
+import MainLayout from "../../Layouts/MainLayout";
 
 const ProfilePage = ({ user }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -266,4 +266,12 @@ const ProfilePage = ({ user }) => {
     );
 };
 
-export default MainLayout(ProfilePage);
+const WrappedProfilePage = ({ user }) => {
+    return (
+        <MainLayout>
+            <ProfilePage user={user} />
+        </MainLayout>
+    );
+};
+
+export default WrappedProfilePage;

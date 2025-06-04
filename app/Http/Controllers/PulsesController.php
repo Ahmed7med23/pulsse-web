@@ -11,6 +11,7 @@ use App\Models\PulseRecipient;
 use App\Models\FriendshipStats;
 use App\Models\PulseReaction;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
 
 class PulsesController extends Controller
 {
@@ -111,14 +112,103 @@ class PulsesController extends Controller
     }
 
     /**
-     * Send pulse to a circle of friends (placeholder for future implementation)
+     * Send pulse to a circle of friends
      */
     private function sendCirclePulse(Request $request)
     {
-        // TODO: Implement circle pulse logic
-        return response()->json([
-            'message' => 'ميزة نبضة الدائرة قيد التطوير'
-        ], 501);
+        $userId = Auth::id();
+        $circleId = $request->circle_id;
+
+        // Check if circle exists and user owns it
+        $circle = DB::table('circles')
+            ->where('id', $circleId)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$circle) {
+            return response()->json([
+                'message' => 'الدائرة غير موجودة أو لا تملك صلاحية للوصول إليها'
+            ], 403);
+        }
+
+        // Get all circle members
+        $circleMembers = DB::table('circle_members')
+            ->join('users', 'circle_members.user_id', '=', 'users.id')
+            ->where('circle_members.circle_id', $circleId)
+            ->select('users.id', 'users.name')
+            ->get();
+
+        if ($circleMembers->isEmpty()) {
+            return response()->json([
+                'message' => 'لا يوجد أعضاء في هذه الدائرة'
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Create the pulse
+            $pulse = Pulse::create([
+                'sender_id' => $userId,
+                'type' => Pulse::TYPE_CIRCLE,
+                'message' => $request->message,
+                'metadata' => [
+                    'circle_id' => $circleId,
+                    'circle_name' => $circle->name,
+                    'recipients_count' => $circleMembers->count(),
+                ]
+            ]);
+
+            // Add all circle members as recipients
+            $recipients = [];
+            foreach ($circleMembers as $member) {
+                $recipients[] = [
+                    'pulse_id' => $pulse->id,
+                    'recipient_id' => $member->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            PulseRecipient::insert($recipients);
+
+            // Update friendship statistics for all members
+            foreach ($circleMembers as $member) {
+                $stats = FriendshipStats::where('user_id', $userId)
+                    ->where('friend_id', $member->id)
+                    ->first();
+
+                if ($stats) {
+                    $stats->increment('total_pulses');
+                    $stats->update(['last_pulse_at' => now()]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'تم إرسال النبضة إلى جميع أعضاء الدائرة بنجاح',
+                'pulse' => [
+                    'id' => $pulse->id,
+                    'type' => $pulse->type,
+                    'message' => $pulse->message,
+                    'sent_to_circle' => $circle->name,
+                    'recipients_count' => $circleMembers->count(),
+                    'sent_at' => $pulse->created_at->diffForHumans(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to send circle pulse', [
+                'circle_id' => $circleId,
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'حدث خطأ أثناء إرسال النبضة'
+            ], 500);
+        }
     }
 
     /**
@@ -253,9 +343,16 @@ class PulsesController extends Controller
                 $pulse = $recipient->pulse;
                 $reactionsSummary = $this->formatReactionsForPulse($pulse->id, $userId);
 
+                // Get circle info if it's a circle pulse
+                $circleName = null;
+                if ($pulse->isCircle() && isset($pulse->metadata['circle_name'])) {
+                    $circleName = $pulse->metadata['circle_name'];
+                }
+
                 return [
                     'id' => $pulse->id,
                     'type' => 'received',
+                    'pulse_type' => $pulse->type, // 'direct' or 'circle'
                     'user' => [
                         'name' => $pulse->sender->name,
                         'avatar' => $pulse->sender->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($pulse->sender->name),
@@ -264,6 +361,7 @@ class PulsesController extends Controller
                     'timeAgo' => $pulse->created_at->diffForHumans(),
                     'reactions' => $reactionsSummary,
                     'seen' => !is_null($recipient->seen_at),
+                    'circleName' => $circleName,
                     'created_at' => $pulse->created_at,
                 ];
             });
@@ -276,9 +374,16 @@ class PulsesController extends Controller
             ->map(function ($pulse) use ($userId, $currentUser) {
                 $reactionsSummary = $this->formatReactionsForPulse($pulse->id, $userId);
 
+                // Get circle info if it's a circle pulse
+                $circleName = null;
+                if ($pulse->isCircle() && isset($pulse->metadata['circle_name'])) {
+                    $circleName = $pulse->metadata['circle_name'];
+                }
+
                 return [
                     'id' => $pulse->id,
                     'type' => 'sent',
+                    'pulse_type' => $pulse->type, // 'direct' or 'circle'
                     'user' => [
                         'name' => $currentUser->name,
                         'avatar' => $currentUser->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($currentUser->name),
@@ -287,6 +392,14 @@ class PulsesController extends Controller
                     'timeAgo' => $pulse->created_at->diffForHumans(),
                     'reactions' => $reactionsSummary,
                     'recipients_count' => $pulse->recipients->count(),
+                    'circleName' => $circleName,
+                    'recipients' => $pulse->recipients->map(function ($recipient) {
+                        return [
+                            'id' => $recipient->recipient->id,
+                            'name' => $recipient->recipient->name,
+                            'seen' => !is_null($recipient->seen_at),
+                        ];
+                    }),
                     'created_at' => $pulse->created_at,
                 ];
             });
@@ -404,13 +517,13 @@ class PulsesController extends Controller
         // Get users who reacted with this reaction type
         $users = PulseReaction::where('pulse_id', $pulseId)
             ->where('reaction_type', $reactionType)
-            ->with('user:id,name,avatar')
+            ->with('user:id,name,avatar_url')
             ->get()
             ->map(function ($reaction) {
                 return [
                     'id' => $reaction->user->id,
                     'name' => $reaction->user->name,
-                    'avatar' => $reaction->user->avatar ?: 'https://ui-avatars.com/api/?name=' . urlencode($reaction->user->name),
+                    'avatar' => $reaction->user->avatar_url ?: 'https://ui-avatars.com/api/?name=' . urlencode($reaction->user->name),
                     'reacted_at' => $reaction->created_at->diffForHumans(),
                 ];
             });

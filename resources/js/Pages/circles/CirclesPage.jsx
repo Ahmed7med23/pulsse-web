@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import MainLayout from "../../Layouts/MainLayout";
 import { Head, router } from "@inertiajs/react";
 import {
     FiPlus,
@@ -14,6 +13,7 @@ import {
     FiStar,
 } from "react-icons/fi";
 import CreateCircleSheet from "./CreateCircleSheet";
+import MainLayout from "../../Layouts/MainLayout";
 
 const CIRCLE_COLORS = [
     { color: "#FFD600" },
@@ -40,6 +40,9 @@ const CIRCLE_ICONS = [
 ];
 
 const CirclesPage = ({ circles }) => {
+    // Debug: Check if circles data is received
+    console.log("Circles data received:", circles);
+
     const [activeTab, setActiveTab] = useState("my-circles"); // my-circles, discover, invites
     const [showMenu, setShowMenu] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -50,6 +53,9 @@ const CirclesPage = ({ circles }) => {
         icon: CIRCLE_ICONS[0].value,
         privacy: "private",
     });
+
+    // Ensure circles is always an array
+    const safeCircles = circles || [];
 
     const discoverCircles = [
         {
@@ -192,7 +198,7 @@ const CirclesPage = ({ circles }) => {
                 {/* Circles Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {activeTab === "my-circles" &&
-                        circles.map((circle) => (
+                        safeCircles.map((circle) => (
                             <CircleCard
                                 key={circle.id}
                                 circle={circle}
@@ -268,11 +274,11 @@ const CircleCard = ({ circle, type = "my-circle", onSettingsClick }) => (
             <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
                 <div className="flex items-center gap-1">
                     <FiUsers size={16} />
-                    <span>{circle.members} عضو</span>
+                    <span>{circle.members_count || 0} عضو</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <FiMessageSquare size={16} />
-                    <span>{circle.pulses} نبضة</span>
+                    <span>{circle.pulses_count || 0} نبضة</span>
                 </div>
             </div>
 
@@ -287,7 +293,7 @@ const CircleCard = ({ circle, type = "my-circle", onSettingsClick }) => (
 
             <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400">
-                    {circle.lastActivity}
+                    {circle.lastActivity || "منذ قليل"}
                 </span>
                 {type === "my-circle" ? (
                     <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-primary text-white hover:bg-primary/90">
@@ -315,4 +321,13 @@ const CircleCard = ({ circle, type = "my-circle", onSettingsClick }) => (
         </div>
     </div>
 );
-export default MainLayout(CirclesPage);
+
+const WrappedCirclesPage = ({ circles }) => {
+    return (
+        <MainLayout>
+            <CirclesPage circles={circles} />
+        </MainLayout>
+    );
+};
+
+export default WrappedCirclesPage;

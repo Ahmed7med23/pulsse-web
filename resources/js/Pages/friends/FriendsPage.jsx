@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import MainLayout from "../../Layouts/MainLayout";
 import {
     FiUser,
     FiCalendar,
@@ -20,7 +19,9 @@ import {
 } from "react-icons/fi";
 import { Head, router } from "@inertiajs/react";
 import FriendSearchModal from "../../Components/Friends/FriendSearchModal";
+import AddToCircleModal from "../../Components/Friends/AddToCircleModal";
 import axios from "axios";
+import MainLayout from "../../Layouts/MainLayout";
 
 const styles = `
 @keyframes pulse-scale {
@@ -51,6 +52,9 @@ const FriendsPage = ({
     const [sendingPulse, setSendingPulse] = useState(null);
     const [showSendPulseModal, setShowSendPulseModal] = useState(false);
     const [selectedFriend, setSelectedFriend] = useState(null);
+    const [showAddToCircleModal, setShowAddToCircleModal] = useState(false);
+    const [selectedFriendForCircle, setSelectedFriendForCircle] =
+        useState(null);
 
     // Use real data from Controller
     const friends = acceptedFriends || [];
@@ -155,6 +159,21 @@ const FriendsPage = ({
         } catch (error) {
             console.error("Error cancelling request:", error);
         }
+    };
+
+    const handleAddToCircle = async (friend) => {
+        setSelectedFriendForCircle(friend);
+        setShowAddToCircleModal(true);
+    };
+
+    const closeAddToCircleModal = () => {
+        setShowAddToCircleModal(false);
+        setSelectedFriendForCircle(null);
+    };
+
+    const onAddToCircleSuccess = () => {
+        // يمكن إضافة تحديث للبيانات هنا إذا لزم الأمر
+        closeAddToCircleModal();
     };
 
     const FriendCard = ({ friend, type = "friend" }) => {
@@ -278,9 +297,7 @@ const FriendsPage = ({
                                 )}
                             </button>
                             <button
-                                onClick={() =>
-                                    alert("ميزة إضافة إلى دائرة قيد التطوير!")
-                                }
+                                onClick={() => handleAddToCircle(friend)}
                                 className="group relative p-2 rounded-full text-blue-500 hover:bg-blue-50 transition-all"
                                 title="إضافة إلى دائرة"
                             >
@@ -431,7 +448,7 @@ const FriendsPage = ({
                     >
                         الطلبات المرسلة
                     </button>
-                    <button
+                    {/* <button
                         onClick={() => setActiveTab("suggestions")}
                         className={`px-4 py-1 rounded-full whitespace-nowrap ${
                             activeTab === "suggestions"
@@ -440,7 +457,7 @@ const FriendsPage = ({
                         }`}
                     >
                         اقتراحات
-                    </button>
+                    </button> */}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -489,6 +506,16 @@ const FriendsPage = ({
                         friend={selectedFriend}
                         onClose={closeSendPulseModal}
                         onPulseSent={onPulseSent}
+                    />
+                )}
+
+                {/* Add To Circle Modal */}
+                {showAddToCircleModal && selectedFriendForCircle && (
+                    <AddToCircleModal
+                        friend={selectedFriendForCircle}
+                        isOpen={showAddToCircleModal}
+                        onClose={closeAddToCircleModal}
+                        onSuccess={onAddToCircleSuccess}
                     />
                 )}
             </div>
@@ -641,4 +668,24 @@ const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
     );
 };
 
-export default MainLayout(FriendsPage);
+const WrappedFriendsPage = ({
+    acceptedFriends,
+    receivedRequests,
+    sentRequests,
+    favoriteFriends,
+    friendsStats,
+}) => {
+    return (
+        <MainLayout>
+            <FriendsPage
+                acceptedFriends={acceptedFriends}
+                receivedRequests={receivedRequests}
+                sentRequests={sentRequests}
+                favoriteFriends={favoriteFriends}
+                friendsStats={friendsStats}
+            />
+        </MainLayout>
+    );
+};
+
+export default WrappedFriendsPage;

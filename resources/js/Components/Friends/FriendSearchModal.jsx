@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     FiSearch,
     FiX,
@@ -15,7 +15,7 @@ import {
     FiLoader,
 } from "react-icons/fi";
 import axios from "axios";
-import { useForm, router } from "@inertiajs/react";
+import { useForm, router, usePage } from "@inertiajs/react";
 
 const FriendSearchModal = ({ isOpen, onClose }) => {
     const [phoneNumber, setPhoneNumber] = useState("");
@@ -24,6 +24,8 @@ const FriendSearchModal = ({ isOpen, onClose }) => {
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
     const [showSendPulseModal, setShowSendPulseModal] = useState(false);
+
+    const { props } = usePage();
 
     const {
         data: invitationData,
@@ -34,6 +36,17 @@ const FriendSearchModal = ({ isOpen, onClose }) => {
     } = useForm({
         phone: "",
     });
+
+    // Listen for flash messages
+    useEffect(() => {
+        if (props.flash?.success) {
+            setSuccessMessage(props.flash.success);
+            setTimeout(() => setSuccessMessage(""), 3000);
+        }
+        if (props.flash?.error) {
+            setError(props.flash.error);
+        }
+    }, [props.flash]);
 
     const resetStates = () => {
         setSearchResult(null);
@@ -89,13 +102,29 @@ const FriendSearchModal = ({ isOpen, onClose }) => {
 
         setInvitationData("phone", phoneNumber);
         post("/friends/send-invitation", {
-            onSuccess: () => {
-                setSuccessMessage("تم إرسال الدعوة بنجاح عبر WhatsApp! 📱");
+            onSuccess: (page) => {
+                // Check for success flash message
+                if (page.props.flash?.success) {
+                    setSuccessMessage(page.props.flash.success);
+                } else {
+                    setSuccessMessage("تم إرسال الدعوة بنجاح عبر WhatsApp! 📱");
+                }
                 setPhoneNumber("");
-                setTimeout(() => onClose(), 2000);
+                setSearchResult(null);
+                setTimeout(() => {
+                    setSuccessMessage("");
+                    onClose();
+                }, 3000);
             },
-            onError: (err) => {
-                setError(err.phone || "حدث خطأ أثناء إرسال الدعوة");
+            onError: (errors) => {
+                // Check for error flash message
+                if (errors.flash?.error) {
+                    setError(errors.flash.error);
+                } else if (errors.phone) {
+                    setError(errors.phone);
+                } else {
+                    setError("حدث خطأ أثناء إرسال الدعوة");
+                }
             },
         });
     };

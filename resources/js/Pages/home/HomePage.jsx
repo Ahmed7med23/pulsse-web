@@ -25,6 +25,11 @@ function Home() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showSendPulseModal, setShowSendPulseModal] = useState(false);
+    const [pulseType, setPulseType] = useState("direct");
+    const [selectedFriend, setSelectedFriend] = useState(null);
+    const [selectedCircle, setSelectedCircle] = useState(null);
+    const [showFriendSearch, setShowFriendSearch] = useState(false);
+    const [showCircleSelection, setShowCircleSelection] = useState(false);
 
     const data = usePage();
 
@@ -199,97 +204,109 @@ function Home() {
             <Head title="الرئيسية" />
             <UserCardHome />
 
-            {/* Tabs */}
-            <div className="mx-2 mt-4 mb-4">
-                <div className="flex bg-gray-100 rounded-lg p-1">
-                    <button
-                        onClick={() => setActiveTab("all")}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors ${
-                            activeTab === "all"
-                                ? "bg-white text-primary shadow-sm"
-                                : "text-gray-600 hover:text-gray-800"
-                        }`}
-                    >
-                        <FiActivity size={16} />
-                        <span className="font-medium">جميع النبضات</span>
-                        <span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full">
-                            {pulses.length}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("received")}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors ${
-                            activeTab === "received"
-                                ? "bg-white text-primary shadow-sm"
-                                : "text-gray-600 hover:text-gray-800"
-                        }`}
-                    >
-                        <FiInbox size={16} />
-                        <span className="font-medium">مستقبلة</span>
-                        <span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full">
-                            {pulses.filter((p) => p.type === "received").length}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("sent")}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors ${
-                            activeTab === "sent"
-                                ? "bg-white text-primary shadow-sm"
-                                : "text-gray-600 hover:text-gray-800"
-                        }`}
-                    >
-                        <FiSend size={16} />
-                        <span className="font-medium">مرسلة</span>
-                        <span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full">
-                            {pulses.filter((p) => p.type === "sent").length}
-                        </span>
-                    </button>
+            {/* Pulse tabs */}
+            <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+                <div className="flex justify-around p-2">
+                    {[
+                        { key: "all", label: "الكل", icon: <FiInbox /> },
+                        {
+                            key: "received",
+                            label: "المستقبلة",
+                            icon: <FiActivity />,
+                        },
+                        { key: "sent", label: "المرسلة", icon: <FiSend /> },
+                    ].map((tab) => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 font-medium transition-colors ${
+                                activeTab === tab.key
+                                    ? "text-primary border-b-2 border-primary"
+                                    : "text-gray-600 hover:text-gray-800"
+                            }`}
+                        >
+                            {tab.icon}
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* النبضات */}
-            <div className="flex flex-col gap-3 mt-4">
+            {/* Pulses list */}
+            <div className="pb-20">
                 {filteredPulses.length > 0 ? (
-                    filteredPulses.map((pulse) => (
-                        <PulseCard
-                            key={pulse.id}
-                            pulse={pulse}
-                            onReactionUpdate={fetchPulses}
-                        />
-                    ))
+                    <div className="space-y-4 p-4">
+                        {filteredPulses.map((pulse) => (
+                            <PulseCard key={pulse.id} pulse={pulse} />
+                        ))}
+                    </div>
                 ) : (
-                    <div className="mx-2 bg-gray-50 rounded-lg p-8 text-center">
-                        <div className="text-gray-400 mb-2">
-                            <FiHeart size={48} className="mx-auto" />
+                    <div className="text-center py-12 px-4">
+                        <div className="text-gray-400 mb-4">
+                            <FiInbox size={48} className="mx-auto" />
                         </div>
-                        <p className="text-gray-600 font-medium">
+                        <h3 className="text-lg font-medium text-gray-500 mb-2">
                             {activeTab === "received" &&
                                 "لا توجد نبضات مستقبلة"}
                             {activeTab === "sent" && "لم ترسل أي نبضات بعد"}
                             {activeTab === "all" && "لا توجد نبضات"}
+                        </h3>
+                        <p className="text-gray-400 mb-6">
+                            {activeTab === "received" &&
+                                "ستظهر النبضات التي يرسلها أصدقاؤك هنا"}
+                            {activeTab === "sent" &&
+                                "ابدأ بإرسال نبضة إلى أصدقائك"}
+                            {activeTab === "all" &&
+                                "ابدأ بإرسال نبضة أو انتظر نبضات من الأصدقاء"}
                         </p>
-                        <p className="text-gray-400 text-sm mt-1">
-                            ابدأ بإرسال نبضة لأصدقائك!
-                        </p>
+                        <button
+                            onClick={() => setShowSendPulseModal(true)}
+                            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
+                        >
+                            <FiPlus size={16} />
+                            إرسال نبضة جديدة
+                        </button>
                     </div>
                 )}
             </div>
 
-            {/* Floating Action Button */}
-            <motion.button
+            {/* Floating action button */}
+            <button
                 onClick={() => setShowSendPulseModal(true)}
-                className="fixed bottom-6 right-6 bg-primary text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                className="fixed bottom-20 left-4 bg-primary text-white p-4 rounded-full shadow-lg hover:bg-primary/90 transition-colors z-10"
             >
                 <FiPlus size={24} />
-            </motion.button>
+            </button>
 
             {/* Send Pulse Modal */}
             {showSendPulseModal && (
                 <SendPulseModal
                     onClose={() => setShowSendPulseModal(false)}
                     onPulseSent={fetchPulses}
+                />
+            )}
+
+            {/* Friend Selection Modal */}
+            {showFriendSearch && (
+                <FriendSelectionModal
+                    friends={mockFriends}
+                    onClose={() => setShowFriendSearch(false)}
+                    onSelect={(friend) => {
+                        setSelectedFriend(friend);
+                        setShowFriendSearch(false);
+                    }}
+                />
+            )}
+
+            {/* Circle Selection Modal */}
+            {showCircleSelection && (
+                <CircleSelectionModal
+                    circles={mockCircles}
+                    onClose={() => setShowCircleSelection(false)}
+                    onSelect={(circle) => {
+                        setSelectedCircle(circle);
+                        setShowCircleSelection(false);
+                    }}
                 />
             )}
         </>
@@ -445,6 +462,11 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
             return;
         }
 
+        if (pulseType === "circle" && !selectedCircle) {
+            alert("الرجاء اختيار دائرة لإرسال النبضة إليها");
+            return;
+        }
+
         try {
             setLoading(true);
 
@@ -455,6 +477,8 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
 
             if (pulseType === "direct") {
                 payload.friend_id = selectedFriend.id;
+            } else if (pulseType === "circle") {
+                payload.circle_id = selectedCircle.id;
             }
 
             const response = await axios.post("/pulses/send", payload, {
@@ -464,7 +488,12 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                 },
             });
 
-            alert("تم إرسال النبضة بنجاح! 🎉");
+            const successMessage =
+                pulseType === "direct"
+                    ? `تم إرسال النبضة إلى ${selectedFriend.name} بنجاح! 🎉`
+                    : `تم إرسال النبضة إلى جميع أعضاء ${selectedCircle.name} بنجاح! 🎉`;
+
+            alert(successMessage);
             onClose();
 
             // تحديث قائمة النبضات
@@ -504,7 +533,10 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                         </label>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => setPulseType("direct")}
+                                onClick={() => {
+                                    setPulseType("direct");
+                                    setSelectedCircle(null);
+                                }}
                                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors ${
                                     pulseType === "direct"
                                         ? "border-primary bg-primary text-white"
@@ -515,12 +547,18 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                                 <span>مباشرة</span>
                             </button>
                             <button
-                                onClick={() => setPulseType("circle")}
-                                disabled
-                                className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-gray-200 text-gray-400 cursor-not-allowed"
+                                onClick={() => {
+                                    setPulseType("circle");
+                                    setSelectedFriend(null);
+                                }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors ${
+                                    pulseType === "circle"
+                                        ? "border-primary bg-primary text-white"
+                                        : "border-gray-300 text-gray-700 hover:border-primary"
+                                }`}
                             >
                                 <FiUsers size={16} />
-                                <span>دائرة (قريباً)</span>
+                                <span>دائرة</span>
                             </button>
                         </div>
                     </div>
@@ -529,48 +567,68 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                     {pulseType === "direct" && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                اختر صديق
+                                اختيار الصديق
                             </label>
-                            {friendsLoading ? (
-                                <div className="flex items-center justify-center py-4">
-                                    <FiLoader
-                                        className="animate-spin text-primary"
-                                        size={20}
-                                    />
-                                    <span className="mr-2 text-gray-600">
-                                        جاري تحميل الأصدقاء...
-                                    </span>
-                                </div>
-                            ) : friends.length > 0 ? (
-                                <div className="space-y-2 max-h-32 overflow-y-auto">
-                                    {friends.map((friend) => (
-                                        <button
-                                            key={friend.id}
-                                            onClick={() =>
-                                                setSelectedFriend(friend)
-                                            }
-                                            className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                                                selectedFriend?.id === friend.id
-                                                    ? "border-primary bg-primary/5"
-                                                    : "border-gray-200 hover:border-primary/50"
-                                            }`}
-                                        >
-                                            <img
-                                                src={friend.avatar}
-                                                alt={friend.name}
-                                                className="w-8 h-8 rounded-full object-cover"
-                                            />
-                                            <span className="text-sm font-medium text-gray-800">
-                                                {friend.name}
+                            <button
+                                onClick={() => setShowFriendSearch(true)}
+                                className="w-full p-3 border border-gray-300 rounded-lg text-right hover:border-primary focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                            >
+                                {selectedFriend ? (
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={selectedFriend.avatar}
+                                            alt={selectedFriend.name}
+                                            className="w-8 h-8 rounded-full"
+                                        />
+                                        <span className="text-gray-900">
+                                            {selectedFriend.name}
+                                        </span>
+                                        {selectedFriend.isOnline && (
+                                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                                متصل
                                             </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-4 text-gray-500">
-                                    لا يوجد أصدقاء متاحين
-                                </div>
-                            )}
+                                        )}
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-500">
+                                        اختر صديقاً...
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Circle Selection (for circle pulses) */}
+                    {pulseType === "circle" && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                اختيار الدائرة
+                            </label>
+                            <button
+                                onClick={() => setShowCircleSelection(true)}
+                                className="w-full p-3 border border-gray-300 rounded-lg text-right hover:border-primary focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                            >
+                                {selectedCircle ? (
+                                    <div className="flex items-center gap-3">
+                                        <div
+                                            className={`w-8 h-8 rounded-full bg-gradient-to-r ${selectedCircle.color}`}
+                                        ></div>
+                                        <div className="text-right">
+                                            <div className="text-gray-900 font-medium">
+                                                {selectedCircle.name}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                {selectedCircle.members_count}{" "}
+                                                عضو
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-500">
+                                        اختر دائرة...
+                                    </span>
+                                )}
+                            </button>
                         </div>
                     )}
 
@@ -628,4 +686,116 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
     );
 };
 
-export default MainLayout(Home);
+/**
+ * Modal for selecting a friend
+ */
+function FriendSelectionModal({ friends, onClose, onSelect }) {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-md max-h-96 overflow-hidden">
+                <div className="p-4 border-b">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">اختيار صديق</h3>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-4 overflow-y-auto max-h-80">
+                    <div className="space-y-2">
+                        {friends.map((friend) => (
+                            <button
+                                key={friend.id}
+                                onClick={() => onSelect(friend)}
+                                className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
+                            >
+                                <img
+                                    src={friend.avatar}
+                                    alt={friend.name}
+                                    className="w-10 h-10 rounded-full object-cover"
+                                />
+                                <div className="flex-1 text-right">
+                                    <div className="font-medium text-gray-900">
+                                        {friend.name}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {friend.isOnline
+                                            ? "متصل الآن"
+                                            : "غير متصل"}
+                                    </div>
+                                </div>
+                                {friend.isOnline && (
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Modal for selecting a circle
+ */
+function CircleSelectionModal({ circles, onClose, onSelect }) {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-md max-h-96 overflow-hidden">
+                <div className="p-4 border-b">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">اختيار دائرة</h3>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-4 overflow-y-auto max-h-80">
+                    <div className="space-y-2">
+                        {circles.map((circle) => (
+                            <button
+                                key={circle.id}
+                                onClick={() => onSelect(circle)}
+                                className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
+                            >
+                                <div
+                                    className={`w-10 h-10 rounded-full bg-gradient-to-r ${circle.color} flex items-center justify-center`}
+                                >
+                                    <FiUsers className="text-white" size={20} />
+                                </div>
+                                <div className="flex-1 text-right">
+                                    <div className="font-medium text-gray-900">
+                                        {circle.name}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {circle.members_count} عضو •{" "}
+                                        {circle.description}
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const HomePage = () => {
+    return (
+        <MainLayout>
+            <Home />
+        </MainLayout>
+    );
+};
+
+export default HomePage;

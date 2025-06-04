@@ -235,7 +235,10 @@ class FriendsController extends Controller
             'phone' => 'required|string',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        // Clean phone number - remove spaces and any special characters
+        $cleanPhone = preg_replace('/[\s\-\(\)\+]/', '', $request->phone);
+
+        $user = User::where('phone', $cleanPhone)->first();
 
         if (!$user) {
             return response()->json([
@@ -243,8 +246,23 @@ class FriendsController extends Controller
             ], 404);
         }
 
+        // Check if current user is blocked by the target user
+        $isCurrentUserBlocked = $this->isBlockedByUser($user->id, Auth::id());
+        if ($isCurrentUserBlocked) {
+            return response()->json([
+                'message' => 'عفواً، هذا المستخدم غير موجود'
+            ], 404);
+        }
+
         // Check if there's already a friendship or request
         $existingFriendship = $this->checkExistingRelationship($user->id);
+
+        // If there's a previous cancelled/rejected request, show appropriate message
+        if (in_array($existingFriendship, ['previously_cancelled', 'previously_rejected'])) {
+            return response()->json([
+                'message' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم في الوقت الحالي'
+            ], 422);
+        }
 
         // Get request ID if there's a pending request
         $requestId = $this->getRelatedRequestId($user->id, $existingFriendship);
@@ -275,6 +293,14 @@ class FriendsController extends Controller
         $receiverId = $request->userId;
         $senderId = Auth::id();
 
+        // Check if current user is blocked by the target user
+        $isCurrentUserBlocked = $this->isBlockedByUser($receiverId, $senderId);
+        if ($isCurrentUserBlocked) {
+            return response()->json([
+                'message' => 'عفواً، لا يمكن إرسال طلب صداقة لهذا المستخدم'
+            ], 422);
+        }
+
         // Check if friendship already exists
         $existingRelationship = $this->checkExistingRelationship($receiverId);
 
@@ -283,7 +309,9 @@ class FriendsController extends Controller
                 'accepted' => 'أنتما أصدقاء بالفعل',
                 'pending_sent' => 'تم إرسال طلب الصداقة مسبقاً',
                 'pending_received' => 'لديك طلب صداقة من هذا المستخدم، يمكنك قبوله',
-                'blocked' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم'
+                'blocked' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم',
+                'previously_cancelled' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم في الوقت الحالي',
+                'previously_rejected' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم في الوقت الحالي'
             ];
 
             return response()->json([
@@ -428,41 +456,39 @@ class FriendsController extends Controller
             'phone' => 'required|string',
         ]);
 
+        // Clean phone number - remove spaces and any special characters
+        $cleanPhone = preg_replace('/[\s\-\(\)\+]/', '', $request->phone);
+
         $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل " . Auth::user()->name . "\n\nيمكنك تحميل التطبيق والانضمام إلينا:\nhttps://pulsse.com/download\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
 
         try {
             $response = Http::get('https://whatsapp.fatora.sd/send-message', [
                 'api_key' => "aijQZatAsXOxodJZZ9Y2xF4ObpDHij",
                 'sender' => "249915903708",
-                'number' => $request->phone,
+                'number' => $cleanPhone, // Use cleaned phone number
                 'message' => $message,
             ]);
 
             if ($response->successful()) {
                 Log::info('Invitation message sent successfully', [
-                    'phone' => $request->phone,
+                    'original_phone' => $request->phone,
+                    'cleaned_phone' => $cleanPhone,
                     'response' => $response->json()
                 ]);
 
-                return response()->json([
-                    'message' => 'تم إرسال دعوة للمستخدم بنجاح',
-                    'isInvitationSent' => true
-                ]);
+                return redirect()->back()->with('success', 'تم إرسال دعوة للمستخدم بنجاح عبر WhatsApp! 📱');
             }
         } catch (\Exception $e) {
             Log::error('Failed to send invitation message', [
-                'phone' => $request->phone,
+                'original_phone' => $request->phone,
+                'cleaned_phone' => $cleanPhone,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'message' => 'لم يتم إرسال دعوة للمستخدم'
-            ], 500);
+            return redirect()->back()->with('error', 'لم يتم إرسال دعوة للمستخدم. يرجى المحاولة مرة أخرى.');
         }
 
-        return response()->json([
-            'message' => 'فشل إرسال الدعوة'
-        ], 500);
+        return redirect()->back()->with('error', 'فشل إرسال الدعوة. يرجى المحاولة مرة أخرى.');
     }
 
     // Helper Methods
@@ -485,14 +511,21 @@ class FriendsController extends Controller
             return 'accepted';
         }
 
-        // Check for blocked relationship
-        $blocked = DB::table('user_friendships')
+        // Check for blocked relationship (from current user's side)
+        $blockedByCurrentUser = DB::table('user_friendships')
             ->where('user_id', $currentUserId)
             ->where('friend_id', $targetUserId)
             ->where('is_blocked', true)
             ->first();
 
-        if ($blocked) {
+        // Check for blocked relationship (from target user's side)
+        $blockedByTargetUser = DB::table('user_friendships')
+            ->where('user_id', $targetUserId)
+            ->where('friend_id', $currentUserId)
+            ->where('is_blocked', true)
+            ->first();
+
+        if ($blockedByCurrentUser || $blockedByTargetUser) {
             return 'blocked';
         }
 
@@ -513,6 +546,25 @@ class FriendsController extends Controller
 
         if ($receivedRequest) {
             return 'pending_received';
+        }
+
+        // Check for cancelled or rejected requests (indicating previous interaction)
+        $previousRequest = FriendRequest::where(function ($query) use ($currentUserId, $targetUserId) {
+            $query->where('sender_id', $currentUserId)
+                ->where('receiver_id', $targetUserId);
+        })->orWhere(function ($query) use ($currentUserId, $targetUserId) {
+            $query->where('sender_id', $targetUserId)
+                ->where('receiver_id', $currentUserId);
+        })->whereIn('status', ['cancelled', 'rejected'])
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if ($previousRequest) {
+            if ($previousRequest->status === 'cancelled') {
+                return 'previously_cancelled';
+            } elseif ($previousRequest->status === 'rejected') {
+                return 'previously_rejected';
+            }
         }
 
         return 'none';
@@ -648,8 +700,42 @@ class FriendsController extends Controller
                     ->where('receiver_id', Auth::id())
                     ->where('status', 'pending')
                     ->value('id');
+            case 'previously_cancelled':
+            case 'previously_rejected':
+                // Return the most recent request for reference
+                return FriendRequest::where(function ($query) use ($userId) {
+                    $query->where('sender_id', Auth::id())
+                        ->where('receiver_id', $userId);
+                })->orWhere(function ($query) use ($userId) {
+                    $query->where('sender_id', $userId)
+                        ->where('receiver_id', Auth::id());
+                })->whereIn('status', ['cancelled', 'rejected'])
+                    ->orderBy('updated_at', 'desc')
+                    ->value('id');
             default:
                 return null;
         }
+    }
+
+    /**
+     * Check if current user is blocked by the target user or vice versa
+     */
+    private function isBlockedByUser($targetUserId, $currentUserId)
+    {
+        // Check if current user is blocked by target user
+        $blockedByTarget = DB::table('user_friendships')
+            ->where('user_id', $targetUserId)
+            ->where('friend_id', $currentUserId)
+            ->where('is_blocked', true)
+            ->first();
+
+        // Check if target user is blocked by current user
+        $blockedByCurrentUser = DB::table('user_friendships')
+            ->where('user_id', $currentUserId)
+            ->where('friend_id', $targetUserId)
+            ->where('is_blocked', true)
+            ->first();
+
+        return $blockedByTarget || $blockedByCurrentUser ? true : false;
     }
 }

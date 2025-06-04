@@ -104,6 +104,18 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
         setShowReactionsModal(true);
     };
 
+    const handleTotalReactionsClick = () => {
+        // Show modal for the most popular reaction type
+        const mostPopularReaction = localReactions
+            .filter((r) => r.count > 0)
+            .sort((a, b) => b.count - a.count)[0];
+
+        if (mostPopularReaction) {
+            setSelectedReactionType(mostPopularReaction.type);
+            setShowReactionsModal(true);
+        }
+    };
+
     const isPulseFromUser = pulse.type === "sent";
     const isDirectPulse = pulse.pulseType === "direct";
     const isCirclePulse = pulse.pulseType === "circle";
@@ -199,12 +211,13 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                                                 reaction.type
                                             )
                                         }
-                                        className="flex items-center gap-1 bg-gray-50 hover:bg-gray-100 rounded-full px-2 py-1 transition-colors"
+                                        className="group flex items-center gap-1.5 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 border border-gray-200 rounded-full px-3 py-1.5 transition-all duration-200 transform hover:scale-105"
+                                        title={`انقر لرؤية من تفاعل بـ ${reaction.icon}`}
                                     >
-                                        <span className="text-sm">
+                                        <span className="text-base group-hover:scale-110 transition-transform">
                                             {reaction.icon}
                                         </span>
-                                        <span className="text-xs font-medium text-gray-600">
+                                        <span className="text-sm font-semibold text-gray-700 group-hover:text-blue-600">
                                             {reaction.count}
                                         </span>
                                     </button>
@@ -213,19 +226,26 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
 
                         {/* Total reactions count */}
                         {localReactions.some((r) => r.count > 0) && (
-                            <span className="text-xs text-gray-400">
-                                {localReactions.reduce(
-                                    (sum, r) => sum + r.count,
-                                    0
-                                )}{" "}
-                                تفاعلات
-                            </span>
+                            <button
+                                onClick={handleTotalReactionsClick}
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+                                title="انقر لرؤية جميع التفاعلات"
+                            >
+                                <FiHeart size={12} className="text-pink-400" />
+                                <span className="font-medium">
+                                    {localReactions.reduce(
+                                        (sum, r) => sum + r.count,
+                                        0
+                                    )}{" "}
+                                    تفاعل
+                                </span>
+                            </button>
                         )}
                     </div>
 
                     {/* Reaction buttons */}
                     <div className="flex justify-center">
-                        <div className="flex items-center gap-1 bg-gray-50 rounded-full p-1">
+                        <div className="flex items-center gap-1 bg-gray-50 rounded-full p-1 shadow-sm">
                             {localReactions.map((reaction) => (
                                 <button
                                     key={reaction.type}
@@ -233,21 +253,36 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                                         handleReactionClick(reaction.type)
                                     }
                                     disabled={reactionLoading}
-                                    className={`w-8 h-8 flex items-center justify-center rounded-full text-lg transition-all duration-200 relative ${
+                                    className={`w-9 h-9 flex items-center justify-center rounded-full text-lg transition-all duration-300 relative ${
                                         reaction.active
-                                            ? "bg-pink-500 text-white scale-110"
-                                            : "hover:bg-white hover:scale-105"
+                                            ? "bg-gradient-to-r from-pink-500 to-red-500 text-white scale-110 shadow-md"
+                                            : "hover:bg-white hover:scale-105 hover:shadow-sm"
                                     } ${
                                         reactionLoading
                                             ? "opacity-70 cursor-not-allowed"
-                                            : ""
+                                            : "cursor-pointer"
                                     }`}
                                     title={`تفاعل بـ ${reaction.icon}`}
                                 >
-                                    {reactionLoading ? (
+                                    {reactionLoading && reaction.active ? (
                                         <FiLoader className="animate-spin text-xs" />
                                     ) : (
-                                        reaction.icon
+                                        <>
+                                            <span
+                                                className={
+                                                    reaction.active
+                                                        ? "animate-pulse"
+                                                        : ""
+                                                }
+                                            >
+                                                {reaction.icon}
+                                            </span>
+                                            {reaction.active && (
+                                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                                                </span>
+                                            )}
+                                        </>
                                     )}
                                 </button>
                             ))}
@@ -274,6 +309,7 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
 const ReactionsModal = ({ pulse, reactionType, onClose }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const reactionMapping = {
         pray: "🙏",
@@ -286,11 +322,24 @@ const ReactionsModal = ({ pulse, reactionType, onClose }) => {
         angry: "😡",
     };
 
+    const reactionNames = {
+        pray: "دعاء",
+        sparkles: "بريق",
+        smile: "ابتسامة",
+        heart: "حب",
+        thumbs_up: "إعجاب",
+        sad: "حزن",
+        surprised: "مفاجأة",
+        angry: "غضب",
+    };
+
     // جلب المستخدمين الذين تفاعلوا
     useEffect(() => {
         const fetchReactionUsers = async () => {
             try {
                 setLoading(true);
+                setError(null);
+
                 const response = await axios.get(
                     `/pulses/${pulse.id}/reactions/${reactionType}`,
                     {
@@ -299,27 +348,15 @@ const ReactionsModal = ({ pulse, reactionType, onClose }) => {
                         },
                     }
                 );
+
+                console.log("Reaction users response:", response.data);
                 setUsers(response.data);
             } catch (error) {
                 console.error("Error fetching reaction users:", error);
-                // استخدام بيانات افتراضية في حالة الخطأ
-                setUsers([
-                    {
-                        id: 1,
-                        name: "سارة أحمد",
-                        avatar: "https://randomuser.me/api/portraits/women/1.jpg",
-                    },
-                    {
-                        id: 2,
-                        name: "محمد علي",
-                        avatar: "https://randomuser.me/api/portraits/men/2.jpg",
-                    },
-                    {
-                        id: 3,
-                        name: "ليلى حسن",
-                        avatar: "https://randomuser.me/api/portraits/women/3.jpg",
-                    },
-                ]);
+                setError(
+                    error.response?.data?.message || "حدث خطأ في جلب المتفاعلين"
+                );
+                setUsers([]);
             } finally {
                 setLoading(false);
             }
@@ -329,49 +366,109 @@ const ReactionsModal = ({ pulse, reactionType, onClose }) => {
     }, [pulse.id, reactionType]);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">
-                        تفاعل {reactionMapping[reactionType]}
-                    </h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">
+                            {reactionMapping[reactionType]}
+                        </span>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800">
+                                تفاعل {reactionNames[reactionType]}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                {loading
+                                    ? "جاري التحميل..."
+                                    : `${users.length} متفاعل`}
+                            </p>
+                        </div>
+                    </div>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600"
+                        className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                     >
                         ✕
                     </button>
                 </div>
 
-                {loading ? (
-                    <div className="flex justify-center py-8">
-                        <FiLoader
-                            className="animate-spin text-primary"
-                            size={24}
-                        />
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {users.map((user) => (
-                            <div
-                                key={user.id}
-                                className="flex items-center gap-3"
+                {/* Content */}
+                <div className="overflow-y-auto max-h-96">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <FiLoader
+                                className="animate-spin text-primary mb-3"
+                                size={32}
+                            />
+                            <p className="text-gray-500">
+                                جاري تحميل المتفاعلين...
+                            </p>
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                <span className="text-2xl">❌</span>
+                            </div>
+                            <p className="text-red-600 text-center mb-2">
+                                {error}
+                            </p>
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="text-sm text-blue-600 hover:text-blue-800"
                             >
-                                <img
-                                    src={user.avatar}
-                                    alt={user.name}
-                                    className="w-10 h-10 rounded-full object-cover"
-                                />
-                                <span className="font-medium text-gray-800">
-                                    {user.name}
+                                إعادة المحاولة
+                            </button>
+                        </div>
+                    ) : users.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                            {users.map((user) => (
+                                <div
+                                    key={user.id}
+                                    className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="relative">
+                                        <img
+                                            src={user.avatar}
+                                            alt={user.name}
+                                            className="w-12 h-12 rounded-full object-cover border-2 border-gray-200"
+                                        />
+                                        <span className="absolute -bottom-1 -right-1 text-sm">
+                                            {reactionMapping[reactionType]}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-semibold text-gray-800 truncate">
+                                            {user.name}
+                                        </h4>
+                                        <p className="text-sm text-gray-500">
+                                            تفاعل {user.reacted_at}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                <span className="text-2xl text-gray-400">
+                                    {reactionMapping[reactionType]}
                                 </span>
                             </div>
-                        ))}
-                        {users.length === 0 && (
-                            <p className="text-center text-gray-500 py-4">
-                                لا يوجد متفاعلون بعد
+                            <p className="text-gray-500 text-center">
+                                لا يوجد متفاعلون بهذا التفاعل بعد
                             </p>
-                        )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                {!loading && !error && users.length > 0 && (
+                    <div className="p-4 border-t border-gray-100 bg-gray-50">
+                        <p className="text-xs text-center text-gray-500">
+                            إجمالي {users.length} متفاعل بـ{" "}
+                            {reactionNames[reactionType]}
+                        </p>
                     </div>
                 )}
             </div>

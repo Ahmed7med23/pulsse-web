@@ -9,6 +9,7 @@ use App\Http\Controllers\PulseReactionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use App\Models\User;
 
 // Routes requiring authentication and verification
 Route::middleware(['auth', 'verified-user'])->group(function () {
@@ -21,6 +22,11 @@ Route::middleware(['auth', 'verified-user'])->group(function () {
     Route::get('/circles', [CirclesController::class, 'index'])->name('circles');
     Route::post('/circles', [CirclesController::class, 'store'])->name('circles.store');
     Route::get('/circles/{circle}', [CirclesController::class, 'show'])->name('circles.show');
+    Route::get('/api/circles/{circle}/members', [CirclesController::class, 'getCircleMembers'])->name('circles.members');
+    Route::get('/api/circles/user-circles', [CirclesController::class, 'getUserCircles'])->name('circles.user-circles');
+    Route::get('/api/circles/friend-circles', [CirclesController::class, 'getFriendCircles'])->name('circles.friend-circles');
+    Route::post('/api/circles/add-member', [CirclesController::class, 'addMember'])->name('circles.add-member');
+    Route::post('/api/circles/remove-member', [CirclesController::class, 'removeMember'])->name('circles.remove-member');
 
 
     Route::get('/friends', [FriendsController::class, 'index'])->name('friends');
@@ -203,3 +209,50 @@ Route::get('/test-login/{userId?}', function ($userId = 1) {
     }
     return redirect('/')->with('error', 'المستخدم غير موجود');
 })->name('test.login');
+
+// Test circles route
+Route::get('/test-circles', function () {
+    return Inertia::render('circles/CirclesPage', [
+        'circles' => [
+            [
+                'id' => 1,
+                'name' => 'دائرة الأصدقاء',
+                'description' => 'دائرة للأصدقاء المقربين والعائلة',
+                'color' => 'from-blue-400 to-indigo-500',
+                'icon' => 'users',
+                'privacy_type' => 'private',
+                'members_count' => 5,
+                'pulses_count' => 12,
+                'is_favorite' => true,
+                'created_at' => 'منذ أسبوع',
+                'lastActivity' => 'منذ ساعتين'
+            ],
+            [
+                'id' => 2,
+                'name' => 'دائرة العمل',
+                'description' => 'زملاء العمل والمشاريع المهنية',
+                'color' => 'from-green-400 to-emerald-500',
+                'icon' => 'settings',
+                'privacy_type' => 'private',
+                'members_count' => 8,
+                'pulses_count' => 25,
+                'is_favorite' => false,
+                'created_at' => 'منذ شهر',
+                'lastActivity' => 'منذ يوم'
+            ],
+            [
+                'id' => 3,
+                'name' => 'دائرة الهوايات',
+                'description' => 'أصدقاء يشاركونني نفس الاهتمامات',
+                'color' => 'from-purple-400 to-pink-500',
+                'icon' => 'heart',
+                'privacy_type' => 'public',
+                'members_count' => 12,
+                'pulses_count' => 45,
+                'is_favorite' => true,
+                'created_at' => 'منذ أسبوعين',
+                'lastActivity' => 'منذ 30 دقيقة'
+            ]
+        ]
+    ]);
+})->name('test.circles');

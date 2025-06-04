@@ -1,142 +1,174 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import MainLayout from "../../Layouts/MainLayout";
 import { Head, router } from "@inertiajs/react";
 import {
-    FiUsers,
-    FiUserPlus,
-    FiTrash2,
     FiArrowLeft,
-    FiEdit3,
-    FiArrowRight,
+    FiSettings,
+    FiUsers,
+    FiPlus,
+    FiTrash2,
+    FiHeart,
+    FiMessageSquare,
+    FiStar,
+    FiGlobe,
+    FiLock,
+    FiMoreVertical,
+    FiUserMinus,
+    FiClock,
+    FiUserPlus,
+    FiActivity,
+    FiSend,
+    FiX,
+    FiLoader,
 } from "react-icons/fi";
+import axios from "axios";
 
-// Mock data - replace with actual data from props and API calls
+// Mock data for initial members (can be removed when real data is available)
 const mockInitialMembers = [
     {
         id: 1,
-        name: "أحمد حسين",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&q=60",
+        name: "أحمد محمد",
+        avatar: "https://ui-avatars.com/api/?name=أحمد+محمد&background=6366f1&color=fff",
+        added_at: "منذ 3 أيام",
     },
     {
         id: 2,
         name: "فاطمة علي",
-        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop&q=60",
-    },
-    {
-        id: 3,
-        name: "محمد عبد الله",
-        avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=40&h=40&fit=crop&q=60",
+        avatar: "https://ui-avatars.com/api/?name=فاطمة+علي&background=8b5cf6&color=fff",
+        added_at: "منذ أسبوع",
     },
 ];
 
-const mockUsersToAdd = [
-    {
-        id: 4,
-        name: "سارة خالد",
-        avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop&q=60",
-    },
-    {
-        id: 5,
-        name: "يوسف محمود",
-        avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&q=60",
-    },
-];
-
-const CircleDetailsPage = ({ circle }) => {
+const CircleDetailsPage = ({ circle, members: initialMembers }) => {
     // Ensure circle and its properties are defined, providing defaults
     const safeCircle = circle || {
         id: "temp",
         name: "اسم الدائرة غير متوفر",
         description: "وصف غير متوفر",
-        members: [],
+        members_count: 0,
+        pulses_count: 0,
+        color: "from-blue-400 to-indigo-500",
+        icon: "users",
+        privacy_type: "private",
+        is_favorite: false,
+        created_at: "غير محدد",
     };
-    const initialMembers =
-        safeCircle.members && safeCircle.members.length > 0
-            ? safeCircle.members
-            : mockInitialMembers;
 
-    const [members, setMembers] = useState(initialMembers);
-    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-    const [usersToAdd, setUsersToAdd] = useState(mockUsersToAdd); // This should come from an API to find users
-    const [selectedUserToAdd, setSelectedUserToAdd] = useState("");
+    // Ensure initialMembers is always an array
+    const safeInitialMembers = Array.isArray(initialMembers)
+        ? initialMembers
+        : [];
 
-    const handleRemoveMember = (memberId) => {
-        // Replace with: router.delete(`/circles/${safeCircle.id}/members/${memberId}`, { ... });
-        console.log(
-            `Attempting to remove member ${memberId} from circle ${safeCircle.id}`
-        );
-        if (window.confirm("هل أنت متأكد أنك تريد إزالة هذا العضو؟")) {
-            setMembers((prevMembers) =>
-                prevMembers.filter((member) => member.id !== memberId)
+    const [members, setMembers] = useState(
+        safeInitialMembers.length > 0 ? safeInitialMembers : mockInitialMembers
+    );
+    const [removingMember, setRemovingMember] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [showSendPulseModal, setShowSendPulseModal] = useState(false);
+
+    const iconMapping = {
+        star: <FiStar />,
+        heart: <FiHeart />,
+        chat: <FiMessageSquare />,
+        users: <FiUsers />,
+        settings: <FiSettings />,
+        globe: <FiGlobe />,
+    };
+
+    // Fetch circle members on component mount
+    useEffect(() => {
+        fetchMembers();
+    }, [safeCircle.id]);
+
+    const fetchMembers = async () => {
+        try {
+            setLoading(true);
+            const response = await axios.get(
+                `/api/circles/${safeCircle.id}/members`
             );
-            // alert('تمت إزالة العضو (محاكاة). قم بربطها بواجهة برمجة التطبيقات.');
-            // router.delete(`/circles/${safeCircle.id}/members/${memberId}`, {
-            //     preserveScroll: true,
-            //     onSuccess: () => { /* handle success */ },
-            //     onError: (errors) => { /* handle error */ console.error('Failed to remove member:', errors); },
-            // });
+
+            // Ensure the response data is an array
+            const membersData = Array.isArray(response.data)
+                ? response.data
+                : [];
+            setMembers(membersData);
+        } catch (err) {
+            console.error("Error fetching members:", err);
+            setError("حدث خطأ في تحميل أعضاء الدائرة");
+            // Keep existing members or use mock data as fallback
+            if (members.length === 0) {
+                setMembers(mockInitialMembers);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleAddMember = (e) => {
-        e.preventDefault();
-        if (!selectedUserToAdd) {
-            alert("يرجى اختيار مستخدم لإضافته.");
+    const handleRemoveMember = async (memberId, memberName) => {
+        if (
+            !confirm(
+                `هل أنت متأكد من إزالة ${memberName} من دائرة "${safeCircle.name}"؟`
+            )
+        ) {
             return;
         }
-        // Replace with: router.post(`/circles/${safeCircle.id}/members`, { userId: selectedUserToAdd }, { ... });
-        console.log(
-            `Attempting to add member ${selectedUserToAdd} to circle ${safeCircle.id}`
-        );
-        const user = usersToAdd.find(
-            (u) => u.id.toString() === selectedUserToAdd
-        );
-        if (user) {
-            if (!members.find((m) => m.id === user.id)) {
-                setMembers((prevMembers) => [
-                    ...prevMembers,
-                    {
-                        ...user,
-                        avatar:
-                            user.avatar ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                user.name
-                            )}&background=random`,
+
+        setRemovingMember(memberId);
+
+        try {
+            const response = await axios.post(
+                "/api/circles/remove-member",
+                {
+                    circle_id: safeCircle.id,
+                    member_id: memberId,
+                },
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
                     },
-                ]);
-                // alert(`تمت إضافة العضو ${user.name} (محاكاة).`);
-            } else {
-                alert("هذا العضو موجود بالفعل في الدائرة.");
+                }
+            );
+
+            if (response.data.success) {
+                // Remove member from local state
+                setMembers((prev) =>
+                    prev.filter((member) => member.id !== memberId)
+                );
+
+                // Show success message
+                alert(
+                    response.data.message.ar ||
+                        "تم إزالة العضو من الدائرة بنجاح!"
+                );
+
+                // Optionally refresh page to update counters
+                // window.location.reload();
             }
+        } catch (error) {
+            console.error("Error removing member:", error);
+            const errorMessage =
+                error.response?.data?.message?.ar ||
+                "حدث خطأ أثناء إزالة العضو من الدائرة";
+            alert(errorMessage);
+        } finally {
+            setRemovingMember(null);
         }
-        setSelectedUserToAdd("");
-        setShowAddMemberModal(false);
-        // router.post(`/circles/${safeCircle.id}/members`, { userId: selectedUserToAdd }, {
-        //     preserveScroll: true,
-        //     onSuccess: (page) => {
-        //         // Assuming the controller returns updated members or you refetch
-        //         // setMembers(page.props.circle.members);
-        //         setShowAddMemberModal(false);
-        //     },
-        //     onError: (errors) => { /* handle error */ console.error('Failed to add member:', errors); },
-        // });
     };
 
     const handleDeleteCircle = () => {
-        // Replace with: router.delete(`/circles/${safeCircle.id}`, { ... });
-        console.log(`Attempting to delete circle ${safeCircle.id}`);
         if (
             window.confirm(
                 `هل أنت متأكد أنك تريد حذف دائرة "${safeCircle.name}"؟ هذا الإجراء لا يمكن التراجع عنه.`
             )
         ) {
-            // alert('تم حذف الدائرة (محاكاة). قم بربطها بواجهة برمجة التطبيقات.');
             router.visit("/circles"); // Redirect after (simulated) deletion
-            // router.delete(`/circles/${safeCircle.id}`, {
-            //     onSuccess: () => router.visit('/circles'),
-            //     onError: (errors) => { /* handle error */ console.error('Failed to delete circle:', errors); },
-            // });
         }
+    };
+
+    const handleGoToAddMembers = () => {
+        router.visit("/friends"); // Go to friends page to add more members
     };
 
     if (!circle) {
@@ -161,230 +193,389 @@ const CircleDetailsPage = ({ circle }) => {
     }
 
     return (
-        <>
-            <Head title={`تفاصيل: ${safeCircle.name}`} />
-            <div className="container mx-auto ">
-                {/* Back Button */}
+        <MainLayout>
+            <Head title={`دائرة ${safeCircle.name}`} />
 
-                {/* Circle Header & Actions */}
-                <div className="bg-white shadow-xl px-4 py-4 mb-4">
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="mb-4 sm:mb-0 text-right">
-                            <div className="flex items-center gap-3 justify-end">
-                                <button
-                                    onClick={() => router.visit("/circles")}
-                                    className="p-2 -mr-2 rounded-full text-gray-600 hover:bg-gray-100 transition-colors"
-                                    title="العودة للدوائر"
-                                >
-                                    <FiArrowRight size={20} />
-                                </button>
-                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-                                    {safeCircle.name}
-                                </h1>
-                                <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
-                                    {members.length} عضو
-                                </span>
-                            </div>
-                            <p className="text-gray-600 mt-1 text-base">
-                                {safeCircle.description ||
-                                    "لا يوجد وصف لهذه الدائرة."}
+            <div className="container mx-auto px-4 py-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => router.visit("/circles")}
+                            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        >
+                            <FiArrowLeft size={20} className="text-gray-600" />
+                        </button>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-800">
+                                دائرة {safeCircle.name}
+                            </h1>
+                            <p className="text-gray-600 text-sm">
+                                {safeCircle.description}
                             </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setShowAddMemberModal(true)}
-                                className="p-2 rounded-full text-gray-700 hover:bg-gray-200 hover:text-primary transition-colors"
-                                title="إضافة عضو جديد"
-                            >
-                                <FiUserPlus size={20} />
-                            </button>
-                            <button
-                                onClick={() =>
-                                    alert("ميزة تعديل الدائرة قيد التطوير!")
-                                }
-                                className="p-2 rounded-full text-gray-700 hover:bg-gray-200 hover:text-primary transition-colors"
-                                title="تعديل تفاصيل الدائرة"
-                            >
-                                <FiEdit3 size={20} />
-                            </button>
-                            <button
-                                onClick={handleDeleteCircle}
-                                className="p-2 rounded-full text-red-500 hover:text-red-600 hover:bg-red-100 transition-colors"
-                                title="حذف الدائرة"
-                            >
-                                <FiTrash2 size={20} />
-                            </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowSendPulseModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                        >
+                            <FiSend size={16} />
+                            <span>إرسال نبضة</span>
+                        </button>
+                        <button
+                            onClick={handleDeleteCircle}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                        >
+                            <FiTrash2 size={16} />
+                            حذف الدائرة
+                        </button>
+                    </div>
+                </div>
+
+                {/* Circle Info Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    {/* Circle Card */}
+                    <div
+                        className={`bg-gradient-to-r ${safeCircle.color} rounded-xl p-6 text-white`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="text-3xl">
+                                {iconMapping[safeCircle.icon] || <FiUsers />}
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-xl">
+                                    {safeCircle.name}
+                                </h3>
+                                <p className="text-sm opacity-90">
+                                    {safeCircle.privacy_type === "private" ? (
+                                        <>
+                                            <FiLock
+                                                className="inline mr-1"
+                                                size={12}
+                                            />
+                                            دائرة خاصة
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FiGlobe
+                                                className="inline mr-1"
+                                                size={12}
+                                            />
+                                            دائرة عامة
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                        {safeCircle.is_favorite && (
+                            <div className="mt-3 flex items-center gap-1 text-sm">
+                                <FiStar size={14} />
+                                دائرة مفضلة
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Members Count */}
+                    <div className="bg-white rounded-xl p-6 border border-gray-100">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-100 rounded-full">
+                                <FiUsers className="text-blue-600" size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-2xl text-gray-800">
+                                    {Array.isArray(members)
+                                        ? members.length
+                                        : 0}
+                                </h3>
+                                <p className="text-gray-600 text-sm">الأعضاء</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pulses Count */}
+                    <div className="bg-white rounded-xl p-6 border border-gray-100">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-purple-100 rounded-full">
+                                <FiMessageSquare
+                                    className="text-purple-600"
+                                    size={24}
+                                />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-2xl text-gray-800">
+                                    {safeCircle.pulses_count || 0}
+                                </h3>
+                                <p className="text-gray-600 text-sm">النبضات</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Members Section */}
-                <div className="bg-white shadow-xl px-4 py-4">
-                    {members.length > 0 ? (
-                        <div className="space-y-3">
-                            {members.map((member) => (
-                                <div
-                                    key={member.id}
-                                    className="group flex items-center justify-between p-3 bg-gradient-to-br from-white to-gray-50 rounded-lg border border-gray-100 hover:shadow-md transition-all duration-200"
+                <div className="bg-white rounded-xl border border-gray-100">
+                    <div className="p-6 border-b border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                <FiUsers className="text-blue-600" />
+                                أعضاء الدائرة (
+                                {Array.isArray(members) ? members.length : 0})
+                            </h2>
+                            {(!Array.isArray(members) ||
+                                members.length === 0) && (
+                                <button
+                                    onClick={handleGoToAddMembers}
+                                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <div className="relative">
-                                            <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow">
-                                                <img
-                                                    src={
-                                                        member.avatar ||
-                                                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                            member.name
-                                                        )}&background=random&color=fff`
-                                                    }
-                                                    alt={member.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <h3 className="text-base font-semibold text-gray-800">
-                                                {member.name}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 mt-0.5">
-                                                عضو منذ{" "}
-                                                {member.joinDate || "3 أشهر"}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() =>
-                                            handleRemoveMember(member.id)
-                                        }
-                                        className="p-2 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
-                                        title="إزالة العضو"
-                                    >
-                                        <FiTrash2 size={18} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-100">
-                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center shadow-inner">
-                                <FiUsers size={28} className="text-gray-400" />
-                            </div>
-                            <h3 className="text-xl font-bold text-gray-700 mb-2">
-                                لا يوجد أعضاء
-                            </h3>
-                            <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                                قم بإضافة أعضاء لبدء التفاعل في هذه الدائرة
-                                وتبادل الأفكار والخبرات
-                            </p>
-                            <button
-                                onClick={() => setShowAddMemberModal(true)}
-                                className="p-2 rounded-full text-gray-700 hover:bg-gray-200 hover:text-primary transition-colors"
-                                title="إضافة عضو جديد"
-                            >
-                                <FiUserPlus size={20} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Add Member Modal */}
-                {showAddMemberModal && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-opacity duration-300 ease-in-out">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all duration-300 ease-in-out scale-95 opacity-0 animate-modalPopIn">
-                            <style jsx>{`
-                                .animate-modalPopIn {
-                                    animation: modalPopIn 0.3s forwards;
-                                }
-                                @keyframes modalPopIn {
-                                    to {
-                                        transform: scale(1);
-                                        opacity: 1;
-                                    }
-                                }
-                            `}</style>
-                            <h3 className="text-2xl font-semibold mb-6 text-gray-800 text-center">
-                                إضافة عضو جديد للدائرة
-                            </h3>
-                            <form onSubmit={handleAddMember}>
-                                <div className="mb-6">
-                                    <label
-                                        htmlFor="userToAdd"
-                                        className="block text-sm font-medium text-gray-700 mb-2"
-                                    >
-                                        اختر مستخدمًا لإضافته:
-                                    </label>
-                                    <select
-                                        id="userToAdd"
-                                        value={selectedUserToAdd}
-                                        onChange={(e) =>
-                                            setSelectedUserToAdd(e.target.value)
-                                        }
-                                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
-                                    >
-                                        <option value="">
-                                            -- حدد مستخدمًا --
-                                        </option>
-                                        {usersToAdd
-                                            .filter(
-                                                (u) =>
-                                                    !members.some(
-                                                        (m) => m.id === u.id
-                                                    )
-                                            )
-                                            .map((user) => (
-                                                <option
-                                                    key={user.id}
-                                                    value={user.id}
-                                                >
-                                                    {user.name}
-                                                </option>
-                                            ))}
-                                        {usersToAdd.filter(
-                                            (u) =>
-                                                !members.some(
-                                                    (m) => m.id === u.id
-                                                )
-                                        ).length === 0 && (
-                                            <option disabled>
-                                                لا يوجد مستخدمين جدد لإضافتهم
-                                            </option>
-                                        )}
-                                    </select>
-                                </div>
-                                <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowAddMemberModal(false)
-                                        }
-                                        className="px-5 py-2.5 text-sm rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors font-medium"
-                                    >
-                                        إلغاء
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={!selectedUserToAdd}
-                                        className="px-5 py-2.5 text-sm rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
-                                    >
-                                        إضافة العضو
-                                    </button>
-                                </div>
-                            </form>
+                                    إضافة الأعضاء الأوائل
+                                </button>
+                            )}
                         </div>
                     </div>
-                )}
+
+                    <div className="p-6">
+                        {loading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                            </div>
+                        ) : error ? (
+                            <div className="text-center py-8">
+                                <p className="text-red-600">{error}</p>
+                            </div>
+                        ) : !Array.isArray(members) || members.length === 0 ? (
+                            <div className="text-center py-12">
+                                <FiUsers
+                                    size={48}
+                                    className="text-gray-300 mx-auto mb-4"
+                                />
+                                <h3 className="text-lg font-medium text-gray-500 mb-2">
+                                    لا يوجد أعضاء في هذه الدائرة
+                                </h3>
+                                <p className="text-gray-400 mb-6">
+                                    ابدأ بإضافة أصدقائك إلى هذه الدائرة
+                                </p>
+                                <button
+                                    onClick={handleGoToAddMembers}
+                                    className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 mx-auto"
+                                >
+                                    <FiPlus size={16} />
+                                    إضافة أعضاء الآن
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Array.isArray(members) &&
+                                members.length > 0 ? (
+                                    members.map((member) => (
+                                        <MemberCard
+                                            key={member.id}
+                                            member={member}
+                                            onRemove={() =>
+                                                handleRemoveMember(
+                                                    member.id,
+                                                    member.name
+                                                )
+                                            }
+                                            isRemoving={
+                                                removingMember === member.id
+                                            }
+                                        />
+                                    ))
+                                ) : (
+                                    <div className="col-span-full text-center py-8">
+                                        <FiUsers
+                                            size={48}
+                                            className="text-gray-300 mx-auto mb-4"
+                                        />
+                                        <p className="text-gray-500">
+                                            لا توجد بيانات أعضاء متوفرة
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Circle Info */}
+                <div className="mt-6 bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <FiClock size={14} />
+                        تم إنشاء الدائرة {safeCircle.created_at}
+                    </div>
+                </div>
             </div>
-        </>
+
+            {/* Send Pulse Modal */}
+            {showSendPulseModal && (
+                <SendCirclePulseModal
+                    circle={safeCircle}
+                    onClose={() => setShowSendPulseModal(false)}
+                    onPulseSent={() => {
+                        setShowSendPulseModal(false);
+                        // Could add a success message here
+                    }}
+                />
+            )}
+        </MainLayout>
     );
 };
 
-// If you are using a global MainLayout for all pages through app.js, you might not need this line.
-// However, if this page needs a specific layout or if MainLayout is passed individually:
-// CircleDetailsPage.layout = (page) => (
-//     <MainLayout children={page} title={page.props.title || "تفاصيل الدائرة"} />
-// );
+// Member Card Component
+const MemberCard = ({ member, onRemove, isRemoving }) => {
+    return (
+        <div className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <img
+                        src={member.avatar}
+                        alt={member.name}
+                        className="w-12 h-12 rounded-full object-cover"
+                    />
+                    <div>
+                        <h3 className="font-medium text-gray-800">
+                            {member.name}
+                        </h3>
+                        <p className="text-sm text-gray-500 flex items-center gap-1">
+                            <FiClock size={12} />
+                            انضم {member.added_at}
+                        </p>
+                    </div>
+                </div>
 
-export default MainLayout(CircleDetailsPage);
-// export default CircleDetailsPage;
+                <button
+                    onClick={onRemove}
+                    disabled={isRemoving}
+                    className={`p-2 rounded-full transition-colors ${
+                        isRemoving
+                            ? "text-gray-400 cursor-not-allowed"
+                            : "text-red-500 hover:bg-red-50"
+                    }`}
+                    title="إزالة من الدائرة"
+                >
+                    {isRemoving ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
+                    ) : (
+                        <FiUserMinus size={16} />
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// Send Circle Pulse Modal
+const SendCirclePulseModal = ({ circle, onClose, onPulseSent }) => {
+    const [message, setMessage] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const handleSendPulse = async () => {
+        if (!message.trim()) {
+            alert("الرجاء كتابة رسالة النبضة");
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            const response = await axios.post("/pulses/send", {
+                type: "circle",
+                message: message.trim(),
+                circle_id: circle.id,
+            });
+
+            alert("تم إرسال النبضة إلى جميع أعضاء الدائرة بنجاح! 🎉");
+            onPulseSent();
+        } catch (error) {
+            console.error("Error sending circle pulse:", error);
+            alert(error.response?.data?.message || "حدث خطأ في إرسال النبضة");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-md">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b">
+                    <h2 className="text-xl font-bold text-gray-800">
+                        إرسال نبضة لدائرة {circle.name}
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600"
+                    >
+                        <FiX size={24} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                    {/* Circle Info */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
+                            <FiUsers className="text-white" size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-medium text-gray-800">
+                                {circle.name}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                سيتم إرسال النبضة لجميع الأعضاء
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Message Input */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            رسالة النبضة
+                        </label>
+                        <textarea
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="اكتب رسالة نبضتك هنا... 💫"
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                            rows={4}
+                            maxLength={255}
+                        />
+                        <div className="text-xs text-gray-400 mt-1 text-left">
+                            {message.length}/255
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 p-6 border-t">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                    >
+                        إلغاء
+                    </button>
+                    <button
+                        onClick={handleSendPulse}
+                        disabled={loading || !message.trim()}
+                        className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {loading ? (
+                            <>
+                                <FiLoader className="animate-spin" size={16} />
+                                <span>جاري الإرسال...</span>
+                            </>
+                        ) : (
+                            <>
+                                <FiSend size={16} />
+                                <span>إرسال النبضة</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default CircleDetailsPage;
