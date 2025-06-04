@@ -10,84 +10,84 @@ use App\Models\PulseReaction;
 class PulseReactionController extends Controller
 {
     /**
-     * Add or toggle a reaction to a pulse
+     * Add or update a reaction to a pulse
      */
-    public function toggleReaction(Request $request, $pulseId)
+    public function react(Request $request)
     {
         $request->validate([
-            'reaction_type' => 'required|in:🙏,✨,😊,❤️,👍,😢,😮,😡',
+            'pulse_id' => 'required|exists:pulses,id',
+            'reaction_type' => 'required|in:pray,sparkles,smile,heart,thumbs_up,sad,surprised,angry'
         ]);
 
-        $pulse = Pulse::findOrFail($pulseId);
         $userId = Auth::id();
+        $pulseId = $request->pulse_id;
+        $reactionType = $request->reaction_type;
 
-        // Check if user already has this reaction
-        $existingReaction = PulseReaction::where([
-            'pulse_id' => $pulseId,
-            'user_id' => $userId,
-            'reaction_type' => $request->reaction_type,
-        ])->first();
+        // Check if user already reacted with this type
+        $existingReaction = PulseReaction::where('pulse_id', $pulseId)
+            ->where('user_id', $userId)
+            ->where('reaction_type', $reactionType)
+            ->first();
 
         if ($existingReaction) {
-            // Remove existing reaction
+            // Remove the reaction if it exists (toggle off)
             $existingReaction->delete();
             $action = 'removed';
         } else {
-            // Add new reaction
+            // Remove any other reaction by this user for this pulse (one reaction per user per pulse)
+            PulseReaction::where('pulse_id', $pulseId)
+                ->where('user_id', $userId)
+                ->delete();
+
+            // Add the new reaction
             PulseReaction::create([
                 'pulse_id' => $pulseId,
                 'user_id' => $userId,
-                'reaction_type' => $request->reaction_type,
+                'reaction_type' => $reactionType
             ]);
             $action = 'added';
         }
 
-        // Get updated reactions summary
-        $reactionsSummary = $this->getReactionsSummary($pulseId);
+        // Get updated reaction counts
+        $reactionCounts = $this->getReactionCounts($pulseId);
 
         return response()->json([
-            'message' => $action === 'added' ? 'تم إضافة التفاعل' : 'تم إزالة التفاعل',
+            'message' => $action === 'added'
+                ? 'تم إضافة رد الفعل بنجاح'
+                : 'تم إزالة رد الفعل بنجاح',
             'action' => $action,
-            'reactions' => $reactionsSummary,
+            'reaction_type' => $reactionType,
+            'icon' => PulseReaction::getReactionIcon($reactionType),
+            'reactions' => $reactionCounts
         ]);
     }
 
     /**
-     * Get all reactions for a pulse
+     * Get reaction counts for a pulse
      */
-    public function getPulseReactions($pulseId)
+    public function getReactions(Request $request)
     {
-        $reactions = PulseReaction::where('pulse_id', $pulseId)
-            ->with('user:id,name,avatar')
-            ->get()
-            ->groupBy('reaction_type')
-            ->map(function ($reactions, $type) {
-                return [
-                    'type' => $type,
-                    'count' => $reactions->count(),
-                    'users' => $reactions->map(function ($reaction) {
-                        return [
-                            'id' => $reaction->user->id,
-                            'name' => $reaction->user->name,
-                            'avatar' => $reaction->user->avatar,
-                            'reacted_at' => $reaction->created_at->diffForHumans(),
-                        ];
-                    }),
-                ];
-            })
-            ->values();
+        $request->validate([
+            'pulse_id' => 'required|exists:pulses,id'
+        ]);
 
-        return response()->json($reactions);
+        $pulseId = $request->pulse_id;
+        $reactionCounts = $this->getReactionCounts($pulseId);
+
+        return response()->json([
+            'reactions' => $reactionCounts
+        ]);
     }
 
     /**
-     * Get reactions summary for a pulse
+     * Get formatted reaction counts for a pulse
      */
-    private function getReactionsSummary($pulseId)
+    private function getReactionCounts($pulseId)
     {
         $userId = Auth::id();
 
-        $summary = PulseReaction::where('pulse_id', $pulseId)
+        // Get all reactions for the pulse
+        $reactions = PulseReaction::where('pulse_id', $pulseId)
             ->selectRaw('
                 reaction_type,
                 COUNT(*) as count,
@@ -95,57 +95,53 @@ class PulseReactionController extends Controller
             ', [$userId])
             ->groupBy('reaction_type')
             ->get()
-            ->mapWithKeys(function ($item) {
+            ->keyBy('reaction_type');
+
+        $formattedReactions = [];
+
+        foreach (PulseReaction::REACTION_TYPES as $reactionType => $emoji) {
+            $reactionData = $reactions->get($reactionType);
+
+            $formattedReactions[] = [
+                'type' => $reactionType,
+                'icon' => $emoji,
+                'active' => $reactionData ? (bool) $reactionData->user_reacted : false,
+                'count' => $reactionData ? $reactionData->count : 0,
+            ];
+        }
+
+        return $formattedReactions;
+    }
+
+    /**
+     * Get users who reacted to a pulse with specific reaction
+     */
+    public function getReactionUsers(Request $request)
+    {
+        $request->validate([
+            'pulse_id' => 'required|exists:pulses,id',
+            'reaction_type' => 'required|in:pray,sparkles,smile,heart,thumbs_up,sad,surprised,angry'
+        ]);
+
+        $users = PulseReaction::where('pulse_id', $request->pulse_id)
+            ->where('reaction_type', $request->reaction_type)
+            ->with('user:id,name,avatar_url')
+            ->latest()
+            ->get()
+            ->map(function ($reaction) {
                 return [
-                    $item->reaction_type => [
-                        'count' => $item->count,
-                        'active' => (bool) $item->user_reacted,
-                    ]
+                    'id' => $reaction->user->id,
+                    'name' => $reaction->user->name,
+                    'avatar' => $reaction->user->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($reaction->user->name),
+                    'reacted_at' => $reaction->created_at->diffForHumans()
                 ];
             });
 
-        // Add missing reaction types with 0 count
-        $allReactionTypes = ['🙏', '✨', '😊', '❤️', '👍', '😢', '😮', '😡'];
-        foreach ($allReactionTypes as $type) {
-            if (!isset($summary[$type])) {
-                $summary[$type] = ['count' => 0, 'active' => false];
-            }
-        }
-
-        return $summary;
-    }
-
-    /**
-     * Get user's reaction for a pulse
-     */
-    public function getUserReaction($pulseId)
-    {
-        $reaction = PulseReaction::where([
-            'pulse_id' => $pulseId,
-            'user_id' => Auth::id(),
-        ])->first();
-
         return response()->json([
-            'reaction' => $reaction ? $reaction->reaction_type : null
-        ]);
-    }
-
-    /**
-     * Remove all user reactions from a pulse
-     */
-    public function removeAllReactions($pulseId)
-    {
-        $deleted = PulseReaction::where([
-            'pulse_id' => $pulseId,
-            'user_id' => Auth::id(),
-        ])->delete();
-
-        $reactionsSummary = $this->getReactionsSummary($pulseId);
-
-        return response()->json([
-            'message' => 'تم إزالة جميع التفاعلات',
-            'removed_count' => $deleted,
-            'reactions' => $reactionsSummary,
+            'reaction_type' => $request->reaction_type,
+            'icon' => PulseReaction::getReactionIcon($request->reaction_type),
+            'users' => $users,
+            'total_count' => $users->count()
         ]);
     }
 }

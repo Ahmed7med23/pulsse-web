@@ -30,11 +30,21 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                     "An error occurred",
             });
 
-            // If verification was successful, redirect to home after 2 seconds
-            if (flash.type === "success") {
+            // If already logged in, show message for longer
+            if (flash.type === "info") {
+                setTimeout(() => {
+                    setMessage(null);
+                }, 8000); // 8 seconds for info messages
+            } else if (flash.type === "success") {
+                // If verification was successful, redirect to home after 2 seconds
                 setTimeout(() => {
                     router.visit("/");
                 }, 2000);
+            } else {
+                // Error messages disappear after 5 seconds
+                setTimeout(() => {
+                    setMessage(null);
+                }, 5000);
             }
         }
     }, [flash]);
@@ -47,20 +57,22 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        // Validate phone number format
-        const phoneNumber = `${selectedCountry.code}${data.phone}`;
+        console.log("Login attempt with:", {
+            phone: data.phone,
+            country: selectedCountry,
+            password: data.password,
+        });
 
         post(
             "/login",
             {
-                phone: phoneNumber,
+                phone: data.phone,
                 password: data.password,
-                remember: true,
+                country: selectedCountry,
             },
             {
                 onSuccess: (response) => {
                     console.log("Login successful:", response);
-                    router.visit("/dashboard");
                 },
                 onError: (errors) => {
                     console.error("Login failed:", errors);
@@ -81,15 +93,31 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                     animate={{ opacity: 1, y: 0 }}
                     className={`fixed top-4 left-4 right-4 max-w-md mx-auto p-4 rounded-lg shadow-lg ${
                         message.type === "error"
-                            ? "bg-red-50 text-red-700"
-                            : "bg-green-50 text-green-700"
+                            ? "bg-red-50 text-red-700 border border-red-200"
+                            : message.type === "info"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : "bg-green-50 text-green-700 border border-green-200"
                     }`}
                 >
                     <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">{message.text}</p>
+                        <div className="flex-1">
+                            <p className="text-sm font-medium">
+                                {message.text}
+                            </p>
+                            {message.type === "info" && (
+                                <button
+                                    onClick={() => {
+                                        router.post("/logout");
+                                    }}
+                                    className="mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                                >
+                                    تسجيل الخروج
+                                </button>
+                            )}
+                        </div>
                         <button
                             onClick={() => setMessage(null)}
-                            className="text-gray-400 hover:text-gray-600"
+                            className="text-gray-400 hover:text-gray-600 ml-2"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -171,6 +199,12 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                     <p className="mt-2 text-sm text-gray-500">
                         أدخل بياناتك للوصول إلى حسابك
                     </p>
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-xs text-blue-700">
+                            💡 ملاحظة: يجب التحقق من رقم هاتفك عبر رمز الواتساب
+                            قبل تسجيل الدخول
+                        </p>
+                    </div>
                 </div>
 
                 {status && (
@@ -228,6 +262,7 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                         </button>
                         <Phone className="w-5 h-5 text-gray-400 mr-2" />
                     </div>
+
                     <p>{errors.phone}</p>
                     {/* Country Modal */}
                     {countryModal && (
@@ -314,7 +349,7 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                     </div>
                 </form>
             </div>
-            <div className="mt-10 text-center">
+            <div className="mt-10 text-center space-y-3">
                 <p className="text-sm text-gray-600">
                     ليس لديك حساب؟{" "}
                     <Link
@@ -322,6 +357,15 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                         className="font-semibold text-primary hover:text-primary-900 transition-colors duration-150 ease-in-out"
                     >
                         سجل الآن
+                    </Link>
+                </p>
+                <p className="text-xs text-gray-500">
+                    لم تتحقق من حسابك بعد؟{" "}
+                    <Link
+                        href={"/register"}
+                        className="font-medium text-blue-600 hover:text-blue-700 underline"
+                    >
+                        اضغط هنا للتحقق
                     </Link>
                 </p>
             </div>

@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Pulse;
 use App\Models\PulseRecipient;
-use App\Models\Friendship;
+use App\Models\FriendshipStats;
 use App\Models\PulseReaction;
 use Inertia\Inertia;
 
@@ -20,10 +21,9 @@ class PulsesController extends Controller
         $receivedPulses = PulseRecipient::where('recipient_id', Auth::id())
             ->with(['pulse.sender'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(10);
 
-
-        return $receivedPulses;
+        // return $receivedPulses;
 
         return Inertia::render('home/HomePage', [
             'receivedPulses' => $receivedPulses,
@@ -55,18 +55,13 @@ class PulsesController extends Controller
     private function sendDirectPulse(Request $request)
     {
         $friend = User::find($request->friend_id);
+        $userId = Auth::id();
 
-        // Check if friendship exists in both directions and is accepted
-        $friendship = Friendship::where('status', 'accepted')
-            ->where(function ($query) use ($friend) {
-                $query->where(function ($q) use ($friend) {
-                    $q->where('sender_id', Auth::id())
-                        ->where('receiver_id', $friend->id);
-                })->orWhere(function ($q) use ($friend) {
-                    $q->where('sender_id', $friend->id)
-                        ->where('receiver_id', Auth::id());
-                });
-            })
+        // Check if friendship exists in the new system using user_friendships table
+        $friendship = DB::table('user_friendships')
+            ->where('user_id', $userId)
+            ->where('friend_id', $friend->id)
+            ->where('is_blocked', false)
             ->first();
 
         if (!$friendship) {
@@ -77,7 +72,7 @@ class PulsesController extends Controller
 
         // Create the pulse
         $pulse = Pulse::create([
-            'sender_id' => Auth::id(),
+            'sender_id' => $userId,
             'type' => Pulse::TYPE_DIRECT,
             'message' => $request->message,
             'metadata' => [
@@ -93,8 +88,14 @@ class PulsesController extends Controller
         ]);
 
         // Update friendship statistics
-        $friendship->increment('pulses_count');
-        $friendship->update(['last_pulse_at' => now()]);
+        $stats = FriendshipStats::where('user_id', $userId)
+            ->where('friend_id', $friend->id)
+            ->first();
+
+        if ($stats) {
+            $stats->increment('total_pulses');
+            $stats->update(['last_pulse_at' => now()]);
+        }
 
         return response()->json([
             'message' => 'تم إرسال الـ pulse بنجاح',
@@ -209,16 +210,26 @@ class PulsesController extends Controller
             ->get()
             ->keyBy('reaction_type');
 
-        // Define available reaction types
-        $availableReactions = ['🙏', '✨', '😊', '❤️', '👍', '😢', '😮', '😡'];
+        // Mapping between database values and emoji icons
+        $reactionMapping = [
+            'pray' => '🙏',
+            'sparkles' => '✨',
+            'smile' => '😊',
+            'heart' => '❤️',
+            'thumbs_up' => '👍',
+            'sad' => '😢',
+            'surprised' => '😮',
+            'angry' => '😡'
+        ];
 
         $formattedReactions = [];
 
-        foreach ($availableReactions as $reactionType) {
+        foreach ($reactionMapping as $reactionType => $emoji) {
             $reactionData = $reactions->get($reactionType);
 
             $formattedReactions[] = [
-                'icon' => $reactionType,
+                'type' => $reactionType,
+                'icon' => $emoji,
                 'active' => $reactionData ? (bool) $reactionData->user_reacted : false,
                 'count' => $reactionData ? $reactionData->count : 0,
             ];
@@ -290,5 +301,120 @@ class PulsesController extends Controller
             });
 
         return response()->json($allPulses);
+    }
+
+    /**
+     * Toggle a reaction on a pulse
+     */
+    public function toggleReaction(Request $request)
+    {
+        $request->validate([
+            'pulseId' => 'required|exists:pulses,id',
+            'reactionType' => 'required|in:pray,sparkles,smile,heart,thumbs_up,sad,surprised,angry',
+        ]);
+
+        $userId = Auth::id();
+        $pulseId = $request->pulseId;
+        $reactionType = $request->reactionType;
+
+        // Check if the pulse exists and user has access to it
+        $pulse = Pulse::find($pulseId);
+
+        // Check if user can react to this pulse (either sender or recipient)
+        $canReact = $pulse->sender_id === $userId ||
+            PulseRecipient::where('pulse_id', $pulseId)
+            ->where('recipient_id', $userId)
+            ->exists();
+
+        if (!$canReact) {
+            return response()->json([
+                'message' => 'لا يمكنك التفاعل مع هذه النبضة'
+            ], 403);
+        }
+
+        // Check if user already has any reaction on this pulse
+        $existingReaction = PulseReaction::where('pulse_id', $pulseId)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($existingReaction) {
+            if ($existingReaction->reaction_type === $reactionType) {
+                // Same reaction - remove it
+                $existingReaction->delete();
+                $action = 'removed';
+            } else {
+                // Different reaction - update it
+                $existingReaction->update(['reaction_type' => $reactionType]);
+                $action = 'updated';
+            }
+        } else {
+            // No existing reaction - create new one
+            PulseReaction::create([
+                'pulse_id' => $pulseId,
+                'user_id' => $userId,
+                'reaction_type' => $reactionType,
+            ]);
+            $action = 'added';
+        }
+
+        // Return updated reactions summary
+        $reactionsSummary = $this->formatReactionsForPulse($pulseId, $userId);
+
+        return response()->json([
+            'message' => 'تم تحديث التفاعل بنجاح',
+            'action' => $action,
+            'reactions' => $reactionsSummary,
+        ]);
+    }
+
+    /**
+     * Get users who reacted with specific reaction type
+     */
+    public function getReactionUsers($pulseId, $reactionType)
+    {
+        // Validate reaction type
+        $validReactions = ['pray', 'sparkles', 'smile', 'heart', 'thumbs_up', 'sad', 'surprised', 'angry'];
+        if (!in_array($reactionType, $validReactions)) {
+            return response()->json([
+                'message' => 'نوع التفاعل غير صحيح'
+            ], 400);
+        }
+
+        // Check if pulse exists
+        $pulse = Pulse::find($pulseId);
+        if (!$pulse) {
+            return response()->json([
+                'message' => 'النبضة غير موجودة'
+            ], 404);
+        }
+
+        // Check if current user has access to see reactions
+        $userId = Auth::id();
+        $canView = $pulse->sender_id === $userId ||
+            PulseRecipient::where('pulse_id', $pulseId)
+            ->where('recipient_id', $userId)
+            ->exists();
+
+        if (!$canView) {
+            return response()->json([
+                'message' => 'لا يمكنك رؤية تفاعلات هذه النبضة'
+            ], 403);
+        }
+
+        // Get users who reacted with this reaction type
+        $users = PulseReaction::where('pulse_id', $pulseId)
+            ->where('reaction_type', $reactionType)
+            ->with('user:id,name,avatar')
+            ->get()
+            ->map(function ($reaction) {
+                return [
+                    'id' => $reaction->user->id,
+                    'name' => $reaction->user->name,
+                    'avatar' => $reaction->user->avatar ?: 'https://ui-avatars.com/api/?name=' . urlencode($reaction->user->name),
+                    'reacted_at' => $reaction->created_at->diffForHumans(),
+                ];
+            });
+
+        return response()->json($users);
     }
 }

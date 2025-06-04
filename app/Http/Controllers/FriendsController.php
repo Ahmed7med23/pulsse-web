@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\Friendship;
+use App\Models\FriendRequest;
+use App\Models\FriendshipStats;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,72 +16,215 @@ use Inertia\Inertia;
 
 class FriendsController extends Controller
 {
-
     /**
-     * Display the friends page.
+     * Display the friends page with all categories
      *
      * @return \Inertia\Response
      */
     public function index()
     {
-        // Get all accepted friendships for the current user
         $userId = Auth::id();
 
-        $friends = Friendship::with(['sender', 'receiver'])
-            ->where('status', 'accepted')
-            ->where(function ($query) use ($userId) {
-                $query->where('sender_id', $userId)
-                    ->orWhere('receiver_id', $userId);
-            })
-            ->whereNull('deleted_at')
-            ->whereNull('blocked_at')
-            ->get();
-
-
-
-        // Get received friend requests
-        $receivedRequests = Friendship::where('receiver_id', Auth::id())
-            ->where('status', 'pending')
-            ->with('sender')
-            ->get()
-            ->map(function ($friendship) {
-                return [
-                    'id' => $friendship->id,
-                    'name' => $friendship->sender->name,
-                    'avatar' => $friendship->sender->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($friendship->sender->name),
-                    'mutualFriends' => 0,
-                    'status' => 'online',
-                    'lastPulseSent' => 'منذ يومين',
-                    'sentAt' => $friendship->created_at->diffForHumans(),
-                    'friendship_status' => $friendship->status,
-                ];
-            });
-
-        // Get sent friend requests
-        $sentRequests = Friendship::where('sender_id', Auth::id())
-            ->where('status', 'pending')
-            ->with('receiver')
-            ->get()
-            ->map(function ($friendship) {
-                return [
-                    'id' => $friendship->id,
-                    'name' => $friendship->receiver->name,
-                    'avatar' => $friendship->receiver->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($friendship->receiver->name),
-                    'mutualFriends' => 0,
-                    'status' => 'online',
-                    'lastPulseSent' => 'منذ يومين',
-                    'sentAt' => $friendship->created_at->diffForHumans(),
-                    'friendship_status' => $friendship->status,
-                ];
-            });
-
         return Inertia::render('friends/FriendsPage', [
-            'friends' => $friends,
-            'receivedRequests' => $receivedRequests,
-            'sentRequests' => $sentRequests,
+            'acceptedFriends' => $this->getAcceptedFriends($userId),
+            'receivedRequests' => $this->getReceivedRequests($userId),
+            'sentRequests' => $this->getSentRequests($userId),
+            'favoriteFriends' => $this->getFavoriteFriends($userId),
+            'friendsStats' => $this->getFriendsStats($userId),
         ]);
     }
 
+    /**
+     * جلب الأصدقاء المقبولين (المؤكدين)
+     */
+    private function getAcceptedFriends($userId)
+    {
+        return User::query()
+            ->join('user_friendships', function ($join) use ($userId) {
+                $join->on('users.id', '=', 'user_friendships.friend_id')
+                    ->where('user_friendships.user_id', '=', $userId)
+                    ->where('user_friendships.is_blocked', '=', false);
+            })
+            ->leftJoin('friendship_stats', function ($join) use ($userId) {
+                $join->on('users.id', '=', 'friendship_stats.friend_id')
+                    ->where('friendship_stats.user_id', '=', $userId);
+            })
+            ->select([
+                'users.id',
+                'users.name',
+                'users.avatar_url',
+                'users.phone',
+                'users.last_active',
+                'users.is_online',
+                'user_friendships.friendship_started_at',
+                'friendship_stats.total_pulses',
+                'friendship_stats.last_pulse_at',
+                'friendship_stats.is_favorite',
+                'friendship_stats.custom_nickname',
+                'friendship_stats.streak_days',
+                'friendship_stats.response_rate'
+            ])
+            ->orderBy('friendship_stats.is_favorite', 'desc')
+            ->orderBy('friendship_stats.last_pulse_at', 'desc')
+            ->get()
+            ->map(function ($friend) {
+                return [
+                    'id' => $friend->id,
+                    'name' => $friend->custom_nickname ?: $friend->name,
+                    'originalName' => $friend->name,
+                    'avatar' => $friend->avatar_url ?: $this->generateAvatar($friend->name),
+                    'phone' => $this->maskPhone($friend->phone),
+                    'isOnline' => $friend->is_online,
+                    'lastActive' => $friend->last_active ? \Carbon\Carbon::parse($friend->last_active)->diffForHumans() : null,
+                    'friendshipStarted' => $friend->friendship_started_at ? \Carbon\Carbon::parse($friend->friendship_started_at)->diffForHumans() : 'غير محدد',
+                    'totalPulses' => $friend->total_pulses ?: 0,
+                    'lastPulse' => $friend->last_pulse_at ? \Carbon\Carbon::parse($friend->last_pulse_at)->diffForHumans() : 'لم يرسل نبضة',
+                    'isFavorite' => (bool) $friend->is_favorite,
+                    'streakDays' => $friend->streak_days ?: 0,
+                    'responseRate' => $friend->response_rate ?: 0,
+                    'status' => 'accepted'
+                ];
+            });
+    }
+
+    /**
+     * جلب طلبات الصداقة المستقبلة (المعلقة)
+     */
+    private function getReceivedRequests($userId)
+    {
+        return FriendRequest::where('receiver_id', $userId)
+            ->where('status', 'pending')
+            ->with(['sender' => function ($query) {
+                $query->select('id', 'name', 'avatar_url', 'phone', 'last_active', 'is_online');
+            }])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($request) use ($userId) {
+                return [
+                    'id' => $request->id,
+                    'requestId' => $request->id,
+                    'userId' => $request->sender->id,
+                    'name' => $request->sender->name,
+                    'avatar' => $request->sender->avatar_url ?: $this->generateAvatar($request->sender->name),
+                    'phone' => $this->maskPhone($request->sender->phone),
+                    'isOnline' => $request->sender->is_online,
+                    'lastActive' => $request->sender->last_active ? \Carbon\Carbon::parse($request->sender->last_active)->diffForHumans() : null,
+                    'message' => $request->message,
+                    'sentAt' => $request->created_at->diffForHumans(),
+                    'mutualFriends' => $this->getMutualFriendsCount($request->sender->id, $userId),
+                    'status' => 'received_pending'
+                ];
+            });
+    }
+
+    /**
+     * جلب طلبات الصداقة المرسلة (المعلقة)
+     */
+    private function getSentRequests($userId)
+    {
+        return FriendRequest::where('sender_id', $userId)
+            ->where('status', 'pending')
+            ->with(['receiver' => function ($query) {
+                $query->select('id', 'name', 'avatar_url', 'phone', 'last_active', 'is_online');
+            }])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($request) use ($userId) {
+                return [
+                    'id' => $request->id,
+                    'requestId' => $request->id,
+                    'userId' => $request->receiver->id,
+                    'name' => $request->receiver->name,
+                    'avatar' => $request->receiver->avatar_url ?: $this->generateAvatar($request->receiver->name),
+                    'phone' => $this->maskPhone($request->receiver->phone),
+                    'isOnline' => $request->receiver->is_online,
+                    'lastActive' => $request->receiver->last_active ? \Carbon\Carbon::parse($request->receiver->last_active)->diffForHumans() : null,
+                    'message' => $request->message,
+                    'sentAt' => $request->created_at->diffForHumans(),
+                    'mutualFriends' => $this->getMutualFriendsCount($request->receiver->id, $userId),
+                    'status' => 'sent_pending'
+                ];
+            });
+    }
+
+    /**
+     * جلب الأصدقاء المفضلين
+     */
+    private function getFavoriteFriends($userId)
+    {
+        return User::query()
+            ->join('user_friendships', function ($join) use ($userId) {
+                $join->on('users.id', '=', 'user_friendships.friend_id')
+                    ->where('user_friendships.user_id', '=', $userId)
+                    ->where('user_friendships.is_blocked', '=', false);
+            })
+            ->join('friendship_stats', function ($join) use ($userId) {
+                $join->on('users.id', '=', 'friendship_stats.friend_id')
+                    ->where('friendship_stats.user_id', '=', $userId)
+                    ->where('friendship_stats.is_favorite', '=', true);
+            })
+            ->select([
+                'users.id',
+                'users.name',
+                'users.avatar_url',
+                'friendship_stats.custom_nickname',
+                'friendship_stats.total_pulses',
+                'friendship_stats.last_pulse_at',
+                'friendship_stats.streak_days'
+            ])
+            ->orderBy('friendship_stats.last_pulse_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($friend) {
+                return [
+                    'id' => $friend->id,
+                    'name' => $friend->custom_nickname ?: $friend->name,
+                    'avatar' => $friend->avatar_url ?: $this->generateAvatar($friend->name),
+                    'totalPulses' => $friend->total_pulses ?: 0,
+                    'lastPulse' => $friend->last_pulse_at ? \Carbon\Carbon::parse($friend->last_pulse_at)->diffForHumans() : 'لم يرسل نبضة',
+                    'streakDays' => $friend->streak_days ?: 0,
+                ];
+            });
+    }
+
+    /**
+     * جلب إحصائيات الأصدقاء العامة
+     */
+    private function getFriendsStats($userId)
+    {
+        $totalFriends = DB::table('user_friendships')
+            ->where('user_id', $userId)
+            ->where('is_blocked', false)
+            ->count();
+
+        $pendingReceived = FriendRequest::where('receiver_id', $userId)
+            ->where('status', 'pending')
+            ->count();
+
+        $pendingSent = FriendRequest::where('sender_id', $userId)
+            ->where('status', 'pending')
+            ->count();
+
+        $favorites = FriendshipStats::where('user_id', $userId)
+            ->where('is_favorite', true)
+            ->count();
+
+        $totalPulsesSent = FriendshipStats::where('user_id', $userId)
+            ->sum('pulses_sent');
+
+        $totalPulsesReceived = FriendshipStats::where('user_id', $userId)
+            ->sum('pulses_received');
+
+        return [
+            'totalFriends' => $totalFriends,
+            'pendingReceived' => $pendingReceived,
+            'pendingSent' => $pendingSent,
+            'favorites' => $favorites,
+            'totalPulsesSent' => $totalPulsesSent,
+            'totalPulsesReceived' => $totalPulsesReceived,
+            'averageResponseRate' => FriendshipStats::where('user_id', $userId)->avg('response_rate') ?: 0,
+        ];
+    }
 
     /**
      * Search for a user by phone number
@@ -93,61 +237,28 @@ class FriendsController extends Controller
 
         $user = User::where('phone', $request->phone)->first();
 
-        // if (!$user) {
-        //     // Send invitation message
-        //     $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل " . Auth::user()->name . "\n\nيمكنك تحميل التطبيق والانضمام إلينا:\nhttps://pulsse.com/download\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
+        if (!$user) {
+            return response()->json([
+                'message' => 'لم يتم العثور على مستخدم بهذا الرقم'
+            ], 404);
+        }
 
-        //     try {
-        //         $response = Http::get('https://whatsapp.fatora.sd/send-message', [
-        //             'api_key' => "aijQZatAsXOxodJZZ9Y2xF4ObpDHij",
-        //             'sender' => "249915903708",
-        //             'number' => $request->phone,
-        //             'message' => $message,
-        //         ]);
+        // Check if there's already a friendship or request
+        $existingFriendship = $this->checkExistingRelationship($user->id);
 
-        //         if ($response->successful()) {
-        //             Log::info('Invitation message sent successfully', [
-        //                 'phone' => $request->phone,
-        //                 'response' => $response->json()
-        //             ]);
-
-        //             return response()->json([
-        //                 'message' => 'تم إرسال دعوة للمستخدم بنجاح',
-        //                 'isInvitationSent' => true
-        //             ]);
-        //         }
-        //     } catch (\Exception $e) {
-        //         Log::error('Failed to send invitation message', [
-        //             'phone' => $request->phone,
-        //             'error' => $e->getMessage()
-        //         ]);
-
-        //         return redirect()->back()->with('error', 'لم يتم إرسال دعوة للمستخدم');
-        //     }
-
-        //     return response()->json([
-        //         'message' => 'لم يتم العثور على مستخدم بهذا الرقم'
-        //     ], 404);
-        // }
-
-        // Check if the user is already a friend
-        $isFriend = Friendship::where(function ($query) use ($user) {
-            $query->where('sender_id', Auth::id())
-                ->where('receiver_id', $user->id);
-            // ->where('status', 'accepted');
-        })->orWhere(function ($query) use ($user) {
-            $query->where('sender_id', $user->id)
-                ->where('receiver_id', Auth::id());
-            // ->where('status', 'accepted');
-        })->first();
+        // Get request ID if there's a pending request
+        $requestId = $this->getRelatedRequestId($user->id, $existingFriendship);
 
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
-            'phone' => $user->phone,
-            'avatar' => $user->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($user->name),
-            'friendship_status' => $isFriend ? $isFriend->status : null,
-            'isFriend' => $isFriend ? true : false
+            'phone' => $this->maskPhone($user->phone),
+            'avatar' => $user->avatar_url ?: $this->generateAvatar($user->name),
+            'isOnline' => $user->is_online,
+            'lastActive' => $user->last_active ? \Carbon\Carbon::parse($user->last_active)->diffForHumans() : null,
+            'relationshipStatus' => $existingFriendship,
+            'requestId' => $requestId,
+            'mutualFriends' => $this->getMutualFriendsCount($user->id, Auth::id())
         ]);
     }
 
@@ -158,131 +269,387 @@ class FriendsController extends Controller
     {
         $request->validate([
             'userId' => 'required|exists:users,id',
+            'message' => 'nullable|string|max:500',
         ]);
 
-        // Check if friendship already exists
-        $existingFriendship = Friendship::where(function ($query) use ($request) {
-            $query->where('sender_id', Auth::id())
-                ->where('receiver_id', $request->userId);
-        })->orWhere(function ($query) use ($request) {
-            $query->where('sender_id', $request->userId)
-                ->where('receiver_id', Auth::id());
-        })->first();
+        $receiverId = $request->userId;
+        $senderId = Auth::id();
 
-        if ($existingFriendship) {
-            if ($existingFriendship->status === 'accepted') {
-                return response()->json([
-                    'message' => 'أنتما أصدقاء بالفعل'
-                ], 422);
-            } elseif ($existingFriendship->status === 'pending') {
-                return response()->json([
-                    'message' => 'تم إرسال طلب الصداقة مسبقاً'
-                ], 422);
-            }
+        // Check if friendship already exists
+        $existingRelationship = $this->checkExistingRelationship($receiverId);
+
+        if ($existingRelationship !== 'none') {
+            $messages = [
+                'accepted' => 'أنتما أصدقاء بالفعل',
+                'pending_sent' => 'تم إرسال طلب الصداقة مسبقاً',
+                'pending_received' => 'لديك طلب صداقة من هذا المستخدم، يمكنك قبوله',
+                'blocked' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم'
+            ];
+
+            return response()->json([
+                'message' => $messages[$existingRelationship] ?? 'يوجد علاقة موجودة بالفعل'
+            ], 422);
         }
 
-        // Create new friendship
-        Friendship::create([
-            'sender_id' => Auth::id(),
-            'receiver_id' => $request->userId,
+        // Create new friend request
+        $friendRequest = FriendRequest::create([
+            'sender_id' => $senderId,
+            'receiver_id' => $receiverId,
+            'message' => $request->message,
             'status' => 'pending',
         ]);
 
+        // TODO: إرسال إشعار للمستخدم المستهدف
+
         return response()->json([
-            'message' => 'تم إرسال طلب الصداقة بنجاح'
+            'message' => 'تم إرسال طلب الصداقة بنجاح',
+            'request' => [
+                'id' => $friendRequest->id,
+                'sentAt' => $friendRequest->created_at->diffForHumans()
+            ]
         ]);
     }
 
+    /**
+     * Accept a friend request
+     */
+    public function acceptRequest(Request $request)
+    {
+        $request->validate([
+            'requestId' => 'required|exists:friend_requests,id',
+        ]);
+
+        $friendRequest = FriendRequest::where('id', $request->requestId)
+            ->where('receiver_id', Auth::id())
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$friendRequest) {
+            return response()->json([
+                'message' => 'طلب الصداقة غير موجود أو تم الرد عليه مسبقاً'
+            ], 404);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Update friend request status
+            $friendRequest->update([
+                'status' => 'accepted',
+                'responded_at' => now()
+            ]);
+
+            // Create bidirectional friendship
+            $this->createBidirectionalFriendship(Auth::id(), $friendRequest->sender_id);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'تم قبول طلب الصداقة بنجاح'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to accept friend request', [
+                'requestId' => $request->requestId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'حدث خطأ أثناء قبول طلب الصداقة'
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject a friend request
+     */
+    public function rejectRequest(Request $request)
+    {
+        $request->validate([
+            'requestId' => 'required|exists:friend_requests,id',
+        ]);
+
+        $friendRequest = FriendRequest::where('id', $request->requestId)
+            ->where('receiver_id', Auth::id())
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$friendRequest) {
+            return response()->json([
+                'message' => 'طلب الصداقة غير موجود أو تم الرد عليه مسبقاً'
+            ], 404);
+        }
+
+        $friendRequest->update([
+            'status' => 'rejected',
+            'responded_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'تم رفض طلب الصداقة'
+        ]);
+    }
+
+    /**
+     * Cancel a sent friend request
+     */
+    public function cancelRequest(Request $request)
+    {
+        $request->validate([
+            'requestId' => 'required|exists:friend_requests,id',
+        ]);
+
+        $friendRequest = FriendRequest::where('id', $request->requestId)
+            ->where('sender_id', Auth::id())
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$friendRequest) {
+            return response()->json([
+                'message' => 'طلب الصداقة غير موجود أو تم الرد عليه مسبقاً'
+            ], 404);
+        }
+
+        $friendRequest->update([
+            'status' => 'cancelled',
+        ]);
+
+        return response()->json([
+            'message' => 'تم إلغاء طلب الصداقة'
+        ]);
+    }
+
+    /**
+     * Send WhatsApp invitation to non-user
+     */
     public function sendInvitation(Request $request)
     {
         $request->validate([
             'phone' => 'required|string',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل " . Auth::user()->name . "\n\nيمكنك تحميل التطبيق والانضمام إلينا:\nhttps://pulsse.com/download\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
 
-        if (!$user) {
-            // create user
-            $user = User::create([
-                'phone' => $request->phone,
-                'name' => $request->name ?? 'مستخدم جديد',
-                'password' => Hash::make('12345678'),
-                'avatar' => $request->avatar ?? 'https://ui-avatars.com/api/?name=' . "مستخدم جديد",
+        try {
+            $response = Http::get('https://whatsapp.fatora.sd/send-message', [
+                'api_key' => "aijQZatAsXOxodJZZ9Y2xF4ObpDHij",
+                'sender' => "249915903708",
+                'number' => $request->phone,
+                'message' => $message,
             ]);
+
+            if ($response->successful()) {
+                Log::info('Invitation message sent successfully', [
+                    'phone' => $request->phone,
+                    'response' => $response->json()
+                ]);
+
+                return response()->json([
+                    'message' => 'تم إرسال دعوة للمستخدم بنجاح',
+                    'isInvitationSent' => true
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send invitation message', [
+                'phone' => $request->phone,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'لم يتم إرسال دعوة للمستخدم'
+            ], 500);
         }
 
-        // add to friends table
-        Friendship::create([
-            'sender_id' => Auth::id(),
-            'receiver_id' => $user->id,
-            'status' => 'pending',
+        return response()->json([
+            'message' => 'فشل إرسال الدعوة'
+        ], 500);
+    }
+
+    // Helper Methods
+
+    /**
+     * Check existing relationship between current user and target user
+     */
+    private function checkExistingRelationship($targetUserId)
+    {
+        $currentUserId = Auth::id();
+
+        // Check if they're already friends
+        $friendship = DB::table('user_friendships')
+            ->where('user_id', $currentUserId)
+            ->where('friend_id', $targetUserId)
+            ->where('is_blocked', false)
+            ->first();
+
+        if ($friendship) {
+            return 'accepted';
+        }
+
+        // Check for blocked relationship
+        $blocked = DB::table('user_friendships')
+            ->where('user_id', $currentUserId)
+            ->where('friend_id', $targetUserId)
+            ->where('is_blocked', true)
+            ->first();
+
+        if ($blocked) {
+            return 'blocked';
+        }
+
+        // Check for pending friend requests
+        $sentRequest = FriendRequest::where('sender_id', $currentUserId)
+            ->where('receiver_id', $targetUserId)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($sentRequest) {
+            return 'pending_sent';
+        }
+
+        $receivedRequest = FriendRequest::where('sender_id', $targetUserId)
+            ->where('receiver_id', $currentUserId)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($receivedRequest) {
+            return 'pending_received';
+        }
+
+        return 'none';
+    }
+
+    /**
+     * Create bidirectional friendship
+     */
+    private function createBidirectionalFriendship($userId1, $userId2)
+    {
+        $friendshipDate = now();
+
+        // Create friendship records in both directions
+        DB::table('user_friendships')->insert([
+            [
+                'user_id' => $userId1,
+                'friend_id' => $userId2,
+                'friendship_started_at' => $friendshipDate,
+                'is_blocked' => false,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ],
+            [
+                'user_id' => $userId2,
+                'friend_id' => $userId1,
+                'friendship_started_at' => $friendshipDate,
+                'is_blocked' => false,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ]
         ]);
 
-        return redirect()->back()->with('success', 'تم إرسال دعوة للمستخدم بنجاح');
+        // Create friendship stats for both users
+        FriendshipStats::insert([
+            [
+                'user_id' => $userId1,
+                'friend_id' => $userId2,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ],
+            [
+                'user_id' => $userId2,
+                'friend_id' => $userId1,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ]
+        ]);
     }
 
-
-    private function getMutualFriendsCount($friendId)
+    /**
+     * Generate avatar URL for user
+     */
+    private function generateAvatar($name)
     {
-        $userId = Auth::id();
-
-        // الحصول على أصدقاء المستخدم الحالي
-        $userFriends = DB::table('friendships')
-            ->where('status', 'accepted')
-            ->where(function ($query) use ($userId) {
-                $query->where('sender_id', $userId)
-                    ->orWhere('receiver_id', $userId);
-            })
-            ->whereNull('deleted_at')
-            ->whereNull('blocked_at')
-            ->get()
-            ->map(function ($friendship) use ($userId) {
-                return $friendship->sender_id == $userId ? $friendship->receiver_id : $friendship->sender_id;
-            });
-
-        // الحصول على أصدقاء الصديق
-        $friendFriends = DB::table('friendships')
-            ->where('status', 'accepted')
-            ->where(function ($query) use ($friendId) {
-                $query->where('sender_id', $friendId)
-                    ->orWhere('receiver_id', $friendId);
-            })
-            ->whereNull('deleted_at')
-            ->whereNull('blocked_at')
-            ->get()
-            ->map(function ($friendship) use ($friendId) {
-                return $friendship->sender_id == $friendId ? $friendship->receiver_id : $friendship->sender_id;
-            });
-
-        // حساب الأصدقاء المشتركين
-        return $userFriends->intersect($friendFriends)->count();
+        return 'https://ui-avatars.com/api/?name=' . urlencode($name) . '&background=EC4899&color=ffffff&size=128';
     }
 
+    /**
+     * Mask phone number for privacy
+     */
+    private function maskPhone($phone)
+    {
+        if (strlen($phone) <= 4) {
+            return $phone;
+        }
+
+        $visible = substr($phone, 0, 3);
+        $hidden = str_repeat('*', strlen($phone) - 6);
+        $end = substr($phone, -3);
+
+        return $visible . $hidden . $end;
+    }
+
+    /**
+     * Get mutual friends count between two users
+     */
+    private function getMutualFriendsCount($friendId, $userId)
+    {
+        // Get friends of the current user
+        $userFriends = DB::table('user_friendships')
+            ->where('user_id', $userId)
+            ->where('is_blocked', false)
+            ->pluck('friend_id')
+            ->toArray();
+
+        // Get friends of the target user
+        $targetFriends = DB::table('user_friendships')
+            ->where('user_id', $friendId)
+            ->where('is_blocked', false)
+            ->pluck('friend_id')
+            ->toArray();
+
+        // Count mutual friends
+        return count(array_intersect($userFriends, $targetFriends));
+    }
+
+    /**
+     * Format last pulse time for display
+     */
     private function formatLastPulseTime($lastPulseAt)
     {
         if (!$lastPulseAt) {
-            return 'لم يرسل أي pulse';
+            return 'لم يرسل نبضة';
         }
 
-        $lastPulse = Carbon::parse($lastPulseAt);
-        $now = Carbon::now();
+        $diffInHours = Carbon::parse($lastPulseAt)->diffInHours(now());
 
-        $diffInDays = $now->diffInDays($lastPulse);
-
-        if ($diffInDays == 0) {
-            return 'اليوم';
-        } elseif ($diffInDays == 1) {
-            return 'أمس';
-        } elseif ($diffInDays == 2) {
-            return 'منذ يومين';
-        } elseif ($diffInDays < 7) {
-            return "منذ {$diffInDays} أيام";
-        } elseif ($diffInDays < 30) {
-            $weeks = floor($diffInDays / 7);
-            return $weeks == 1 ? 'منذ أسبوع' : "منذ {$weeks} أسابيع";
+        if ($diffInHours < 1) {
+            return 'منذ دقائق';
+        } elseif ($diffInHours < 24) {
+            return 'منذ ' . $diffInHours . ' ساعة';
+        } elseif ($diffInHours < 168) { // أسبوع
+            $days = intval($diffInHours / 24);
+            return 'منذ ' . $days . ' يوم';
         } else {
-            $months = floor($diffInDays / 30);
-            return $months == 1 ? 'منذ شهر' : "منذ {$months} أشهر";
+            return Carbon::parse($lastPulseAt)->format('Y-m-d');
+        }
+    }
+
+    /**
+     * Get related request ID based on existing relationship
+     */
+    private function getRelatedRequestId($userId, $relationship)
+    {
+        switch ($relationship) {
+            case 'pending_sent':
+                return FriendRequest::where('sender_id', Auth::id())
+                    ->where('receiver_id', $userId)
+                    ->where('status', 'pending')
+                    ->value('id');
+            case 'pending_received':
+                return FriendRequest::where('sender_id', $userId)
+                    ->where('receiver_id', Auth::id())
+                    ->where('status', 'pending')
+                    ->value('id');
+            default:
+                return null;
         }
     }
 }

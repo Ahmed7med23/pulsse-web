@@ -1,23 +1,26 @@
 import React, { useState } from "react";
 import MainLayout from "../../Layouts/MainLayout";
-import { Head } from "@inertiajs/react";
 import {
-    FiUserPlus,
+    FiUser,
+    FiCalendar,
+    FiEye,
     FiUserCheck,
+    FiUserPlus,
     FiUserX,
+    FiHeart,
+    FiCircle,
     FiSearch,
     FiClock,
+    FiTrendingUp,
+    FiTrash2,
     FiSend,
+    FiLoader,
     FiArrowRight,
     FiEdit3,
-    FiUsers,
-    FiTrash2,
-    FiHeart,
-    FiUser,
-    FiCircle,
 } from "react-icons/fi";
-import { router } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react";
 import FriendSearchModal from "../../Components/Friends/FriendSearchModal";
+import axios from "axios";
 
 const styles = `
 @keyframes pulse-scale {
@@ -35,65 +38,27 @@ const styleSheet = document.createElement("style");
 styleSheet.textContent = styles;
 document.head.appendChild(styleSheet);
 
-const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
-    const [activeTab, setActiveTab] = useState("friends"); // friends, received-requests, sent-requests, suggestions
+const FriendsPage = ({
+    acceptedFriends,
+    receivedRequests,
+    sentRequests,
+    favoriteFriends,
+    friendsStats,
+}) => {
+    const [activeTab, setActiveTab] = useState("accepted");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [showSearchModal, setShowSearchModal] = useState(false);
     const [sendingPulse, setSendingPulse] = useState(null);
-    const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+    const [showSendPulseModal, setShowSendPulseModal] = useState(false);
+    const [selectedFriend, setSelectedFriend] = useState(null);
 
-    // Mock data - Replace with actual API calls
-    const friendsx = [
-        {
-            id: 1,
-            name: "سارة أحمد",
-            avatar: "https://randomuser.me/api/portraits/women/1.jpg",
-            mutualFriends: 5,
-            status: "online",
-            lastPulseSent: "منذ يومين",
-        },
-        {
-            id: 2,
-            name: "محمد علي",
-            avatar: "https://randomuser.me/api/portraits/men/2.jpg",
-            mutualFriends: 3,
-            status: "offline",
-            lastPulseSent: "منذ أسبوع",
-        },
-    ];
+    // Use real data from Controller
+    const friends = acceptedFriends || [];
+    const receivedRequestsData = receivedRequests || [];
+    const sentRequestsData = sentRequests || [];
+    const favoriteFriendsData = favoriteFriends || [];
 
-    const receivedRequestsx = [
-        {
-            id: 1,
-            name: "ليلى حسن",
-            avatar: "https://randomuser.me/api/portraits/women/3.jpg",
-            mutualFriends: 4,
-            sentAt: "منذ ساعتين",
-        },
-        {
-            id: 2,
-            name: "أحمد محمود",
-            avatar: "https://randomuser.me/api/portraits/men/5.jpg",
-            mutualFriends: 2,
-            sentAt: "منذ 3 ساعات",
-        },
-    ];
-
-    const sentRequestsx = [
-        {
-            id: 1,
-            name: "خالد يوسف",
-            avatar: "https://randomuser.me/api/portraits/men/4.jpg",
-            mutualFriends: 7,
-            sentAt: "منذ يوم",
-        },
-        {
-            id: 2,
-            name: "نورا محمد",
-            avatar: "https://randomuser.me/api/portraits/women/6.jpg",
-            mutualFriends: 3,
-            sentAt: "منذ يومين",
-        },
-    ];
-
+    // Mock suggestions data for now - will be replaced with real API later
     const suggestions = [
         {
             id: 1,
@@ -109,32 +74,116 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
         },
     ];
 
-    const handleSendPulse = async (friendId) => {
+    const handleSendPulse = async (friend) => {
+        setSelectedFriend(friend);
+        setShowSendPulseModal(true);
+    };
+
+    const closeSendPulseModal = () => {
+        setShowSendPulseModal(false);
+        setSelectedFriend(null);
+    };
+
+    const onPulseSent = () => {
+        closeSendPulseModal();
+        // يمكن إضافة تحديث للبيانات هنا إذا لزم الأمر
+    };
+
+    const handleAcceptRequest = async (requestId) => {
         try {
-            setSendingPulse(friendId);
-            // Replace with actual API call
-            await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulated API call
-            router.post("/pulses/send", {
-                friend_id: friendId,
-                message: "أرسلت لك نبضة! 👋",
-            });
+            const response = await axios.post(
+                "/friends/accept-request",
+                {
+                    requestId: requestId,
+                },
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            // إعادة تحميل البيانات أو تحديث الحالة
+            window.location.reload(); // للآن، سنعيد التحميل
         } catch (error) {
-            console.error("Error sending pulse:", error);
-        } finally {
-            setSendingPulse(null);
+            console.error("Error accepting request:", error);
+            alert(error.response?.data?.message || "حدث خطأ أثناء قبول الطلب");
+        }
+    };
+
+    const handleRejectRequest = async (requestId) => {
+        try {
+            const response = await axios.post(
+                "/friends/reject-request",
+                {
+                    requestId: requestId,
+                },
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            // إعادة تحميل البيانات أو تحديث الحالة
+            window.location.reload(); // للآن، سنعيد التحميل
+        } catch (error) {
+            console.error("Error rejecting request:", error);
+            alert(error.response?.data?.message || "حدث خطأ أثناء رفض الطلب");
+        }
+    };
+
+    const handleCancelRequest = async (requestId) => {
+        try {
+            const response = await axios.post(
+                "/friends/cancel-request",
+                {
+                    requestId: requestId,
+                },
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            // إعادة تحميل البيانات أو تحديث الحالة
+            window.location.reload(); // للآن، سنعيد التحميل
+        } catch (error) {
+            console.error("Error cancelling request:", error);
         }
     };
 
     const FriendCard = ({ friend, type = "friend" }) => {
         const [isPulsing, setIsPulsing] = useState(false);
 
-        const handlePulseClick = async (friendId) => {
+        const handlePulseClick = async (friend) => {
             setIsPulsing(true);
             try {
-                await handleSendPulse(friendId);
+                handleSendPulse(friend);
             } finally {
-                setTimeout(() => setIsPulsing(false), 1000);
+                setTimeout(() => setIsPulsing(false), 300);
             }
+        };
+
+        // Handle field name mapping between Controller and Frontend
+        const friendData = {
+            id: friend.id,
+            name: friend.name,
+            avatar: friend.avatar,
+            mutualFriends: friend.mutualFriends || 0,
+            status: friend.isOnline ? "online" : "offline", // Convert boolean to string
+            lastPulseSent: friend.lastPulse, // Map lastPulse to lastPulseSent
+            sentAt: friend.sentAt,
+            isOnline: friend.isOnline,
+            lastActive: friend.lastActive,
+            friendshipStarted: friend.friendshipStarted,
+            totalPulses: friend.totalPulses,
+            isFavorite: friend.isFavorite,
+            phone: friend.phone, // masked phone number
         };
 
         return (
@@ -142,49 +191,75 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                 <div className="flex items-center gap-4">
                     <div className="relative">
                         <img
-                            src={friend.avatar}
-                            alt={friend.name}
+                            src={friendData.avatar}
+                            alt={friendData.name}
                             className="w-16 h-16 rounded-full object-cover"
                         />
                         {type === "friend" && (
                             <span
                                 className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                                    friend.status === "online"
+                                    friendData.status === "online"
                                         ? "bg-green-500"
                                         : "bg-gray-400"
                                 }`}
                             />
                         )}
+                        {friendData.isFavorite && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
+                                <FiHeart size={10} className="text-white" />
+                            </span>
+                        )}
                     </div>
                     <div className="flex-1">
                         <h3 className="font-semibold text-gray-800">
-                            {friend.name}
+                            {friendData.name}
                         </h3>
-                        <p className="text-sm text-gray-500">
-                            {friend.mutualFriends} أصدقاء مشتركين
-                        </p>
-                        {type === "friend" && friend.lastPulseSent && (
-                            <p className="text-xs text-gray-400 mt-1">
-                                آخر نبضة: {friend.lastPulseSent}
-                            </p>
+
+                        {/* Show different info based on type */}
+                        {type === "friend" && (
+                            <>
+                                <p className="text-sm text-gray-500">
+                                    {friendData.mutualFriends} أصدقاء مشتركين
+                                </p>
+                                {friendData.lastPulseSent && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        آخر نبضة: {friendData.lastPulseSent}
+                                    </p>
+                                )}
+                                {friendData.totalPulses && (
+                                    <p className="text-xs text-blue-600 mt-1">
+                                        إجمالي النبضات: {friendData.totalPulses}
+                                    </p>
+                                )}
+                                {friendData.lastActive &&
+                                    !friendData.isOnline && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            آخر نشاط: {friendData.lastActive}
+                                        </p>
+                                    )}
+                            </>
                         )}
+
                         {(type === "received-request" ||
                             type === "sent-request") && (
-                            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                                <FiClock size={14} />
-                                {friend.sentAt}
-                            </p>
+                            <>
+                                <p className="text-sm text-gray-500">
+                                    {friendData.mutualFriends} أصدقاء مشتركين
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                    <FiClock size={14} />
+                                    {friendData.sentAt}
+                                </p>
+                            </>
                         )}
                     </div>
                     {type === "friend" && (
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => handlePulseClick(friend.id)}
-                                disabled={
-                                    sendingPulse === friend.id || isPulsing
-                                }
+                                onClick={() => handlePulseClick(friend)}
+                                disabled={isPulsing}
                                 className={`relative p-2 rounded-full transition-all ${
-                                    sendingPulse === friend.id || isPulsing
+                                    isPulsing
                                         ? "text-gray-400 cursor-not-allowed"
                                         : "text-red-500 hover:bg-red-50"
                                 }`}
@@ -228,12 +303,22 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                     {type === "received-request" && (
                         <div className="flex items-center gap-2">
                             <button
+                                onClick={() =>
+                                    handleAcceptRequest(
+                                        friend.requestId || friend.id
+                                    )
+                                }
                                 className="p-2 rounded-full text-green-500 hover:bg-green-50 transition-all"
                                 title="قبول الطلب"
                             >
                                 <FiUserCheck size={20} />
                             </button>
                             <button
+                                onClick={() =>
+                                    handleRejectRequest(
+                                        friend.requestId || friend.id
+                                    )
+                                }
                                 className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-all"
                                 title="رفض الطلب"
                             >
@@ -243,6 +328,11 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                     )}
                     {type === "sent-request" && (
                         <button
+                            onClick={() =>
+                                handleCancelRequest(
+                                    friend.requestId || friend.id
+                                )
+                            }
                             className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-all"
                             title="إلغاء الطلب"
                         >
@@ -290,7 +380,7 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                     </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => setIsSearchModalOpen(true)}
+                            onClick={() => setShowSearchModal(true)}
                             className="p-2 rounded-full text-gray-700 hover:bg-gray-200 hover:text-primary transition-colors"
                             title="بحث عن أصدقاء"
                         >
@@ -312,9 +402,9 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
             <div className="container px-4">
                 <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
                     <button
-                        onClick={() => setActiveTab("friends")}
+                        onClick={() => setActiveTab("accepted")}
                         className={`px-4 py-1 rounded-full whitespace-nowrap ${
-                            activeTab === "friends"
+                            activeTab === "accepted"
                                 ? "bg-primary text-white"
                                 : "bg-gray-100 text-gray-600"
                         }`}
@@ -354,7 +444,7 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {activeTab === "friends" &&
+                    {activeTab === "accepted" &&
                         friends.map((friend) => (
                             <FriendCard
                                 key={friend.id}
@@ -363,7 +453,7 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                             />
                         ))}
                     {activeTab === "received-requests" &&
-                        receivedRequests.map((request) => (
+                        receivedRequestsData.map((request) => (
                             <FriendCard
                                 key={request.id}
                                 friend={request}
@@ -371,7 +461,7 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                             />
                         ))}
                     {activeTab === "sent-requests" &&
-                        sentRequests.map((request) => (
+                        sentRequestsData.map((request) => (
                             <FriendCard
                                 key={request.id}
                                 friend={request}
@@ -389,9 +479,18 @@ const FriendsPage = ({ friends, receivedRequests, sentRequests }) => {
                 </div>
 
                 <FriendSearchModal
-                    isOpen={isSearchModalOpen}
-                    onClose={() => setIsSearchModalOpen(false)}
+                    isOpen={showSearchModal}
+                    onClose={() => setShowSearchModal(false)}
                 />
+
+                {/* Send Pulse Modal */}
+                {showSendPulseModal && selectedFriend && (
+                    <SendPulseModal
+                        friend={selectedFriend}
+                        onClose={closeSendPulseModal}
+                        onPulseSent={onPulseSent}
+                    />
+                )}
             </div>
         </>
     );
@@ -407,6 +506,138 @@ const TabButton = ({ label, onClick, isActive }) => {
         >
             {label}
         </button>
+    );
+};
+
+/**
+ * Modal for sending a pulse to a specific friend
+ */
+const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
+    const [message, setMessage] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const handleSendPulse = async () => {
+        if (!message.trim()) {
+            alert("الرجاء كتابة رسالة النبضة");
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            // Use real API endpoint
+            const response = await axios.post(
+                "/pulses/send",
+                {
+                    type: "direct",
+                    message: message.trim(),
+                    friend_id: friend.id,
+                },
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            alert("تم إرسال النبضة بنجاح! 🎉");
+            onClose();
+
+            // إشعار المكون الأب بالإرسال الناجح
+            if (onPulseSent) {
+                onPulseSent();
+            }
+        } catch (error) {
+            console.error("Error sending pulse:", error);
+            alert(error.response?.data?.message || "حدث خطأ في إرسال النبضة");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-md">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b">
+                    <h2 className="text-xl font-bold text-gray-800">
+                        إرسال نبضة لـ {friend.name}
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                    {/* Friend Info */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <img
+                            src={friend.avatar}
+                            alt={friend.name}
+                            className="w-12 h-12 rounded-full object-cover"
+                        />
+                        <div>
+                            <h3 className="font-medium text-gray-800">
+                                {friend.name}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                {friend.isOnline ? "متصل الآن" : "غير متصل"}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Message Input */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            رسالة النبضة
+                        </label>
+                        <textarea
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="اكتب رسالة نبضتك هنا... 💫"
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                            rows={3}
+                            maxLength={255}
+                        />
+                        <div className="text-xs text-gray-400 mt-1 text-left">
+                            {message.length}/255
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 p-6 border-t">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                    >
+                        إلغاء
+                    </button>
+                    <button
+                        onClick={handleSendPulse}
+                        disabled={loading || !message.trim()}
+                        className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {loading ? (
+                            <>
+                                <FiLoader className="animate-spin" size={16} />
+                                <span>جاري الإرسال...</span>
+                            </>
+                        ) : (
+                            <>
+                                <FiSend size={16} />
+                                <span>إرسال النبضة</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };
 
