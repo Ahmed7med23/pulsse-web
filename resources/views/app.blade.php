@@ -21,6 +21,18 @@
 												font-family: 'Baloo Bhaijaan 2', sans-serif;
 								}
 				</style>
+				<!-- Google tag (gtag.js) -->
+				<script async src="https://www.googletagmanager.com/gtag/js?id=G-B0D43DKL1S"></script>
+				<script>
+								window.dataLayer = window.dataLayer || [];
+
+								function gtag() {
+												dataLayer.push(arguments);
+								}
+								gtag('js', new Date());
+
+								gtag('config', 'G-B0D43DKL1S');
+				</script>
 
 </head>
 
