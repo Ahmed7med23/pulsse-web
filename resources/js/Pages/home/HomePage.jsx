@@ -259,24 +259,9 @@ function Home() {
                             {activeTab === "all" &&
                                 "ابدأ بإرسال نبضة أو انتظر نبضات من الأصدقاء"}
                         </p>
-                        <button
-                            onClick={() => setShowSendPulseModal(true)}
-                            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
-                        >
-                            <FiPlus size={16} />
-                            إرسال نبضة جديدة
-                        </button>
                     </div>
                 )}
             </div>
-
-            {/* Floating action button */}
-            <button
-                onClick={() => setShowSendPulseModal(true)}
-                className="fixed bottom-20 left-4 bg-primary text-white p-4 rounded-full shadow-lg hover:bg-primary/90 transition-colors z-10"
-            >
-                <FiPlus size={24} />
-            </button>
 
             {/* Send Pulse Modal */}
             {showSendPulseModal && (

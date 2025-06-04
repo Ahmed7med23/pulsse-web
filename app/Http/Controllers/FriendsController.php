@@ -459,7 +459,7 @@ class FriendsController extends Controller
         // Clean phone number - remove spaces and any special characters
         $cleanPhone = preg_replace('/[\s\-\(\)\+]/', '', $request->phone);
 
-        $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل " . Auth::user()->name . "\n\nيمكنك تحميل التطبيق والانضمام إلينا:\nhttps://pulsse.com/download\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
+        $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل " . Auth::user()->name . "\n\nيمكنك تحميل التطبيق والانضمام إلينا:\nhttps://pulsse.online\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
 
         try {
             $response = Http::get('https://whatsapp.fatora.sd/send-message', [
