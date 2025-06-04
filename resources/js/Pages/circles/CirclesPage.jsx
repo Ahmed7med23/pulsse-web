@@ -29,6 +29,11 @@ const availableColors = [
     { id: 3, value: "from-blue-400 to-indigo-500", label: "أزرق" },
     { id: 4, value: "from-emerald-400 to-green-500", label: "أخضر" },
     { id: 5, value: "from-amber-400 to-yellow-500", label: "ذهبي" },
+    { id: 6, value: "from-cyan-400 to-teal-500", label: "تركوازي" },
+    { id: 7, value: "from-pink-400 to-rose-500", label: "وردي" },
+    { id: 8, value: "from-orange-400 to-red-500", label: "برتقالي" },
+    { id: 9, value: "from-indigo-400 to-blue-500", label: "نيلي" },
+    { id: 10, value: "from-purple-400 to-indigo-500", label: "أرجواني" },
 ];
 const CIRCLE_ICONS = [
     { icon: <FiStar />, value: "star" },
@@ -61,30 +66,61 @@ const CirclesPage = ({ circles }) => {
         {
             id: 3,
             name: "دوائر المبدعين",
-            description: "مجموعة للمبدعين في مختلف المجالات",
+            description:
+                "مجموعة للمبدعين في مختلف المجالات الفنية والإبداعية لتبادل الأفكار والخبرات",
             members: 234,
             pulses: 567,
-            image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3",
+            icon: "star",
+            color: "from-purple-500 to-pink-500",
+            privacy: "public",
         },
         {
             id: 4,
-            name: "دوائر رواد الأعمال",
-            description: "مجموعة لرواد الأعمال والمستثمرين",
+            name: "رواد الأعمال",
+            description:
+                "شبكة لرواد الأعمال والمستثمرين لمشاركة الفرص والتجارب التجارية",
             members: 178,
             pulses: 345,
-            image: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3",
+            icon: "globe",
+            color: "from-blue-500 to-indigo-600",
+            privacy: "public",
+        },
+        {
+            id: 5,
+            name: "محبي التكنولوجيا",
+            description:
+                "مجتمع للمهتمين بأحدث التطورات التكنولوجية والابتكارات",
+            members: 456,
+            pulses: 823,
+            icon: "settings",
+            color: "from-green-500 to-teal-500",
+            privacy: "public",
         },
     ];
 
     const circleInvites = [
         {
-            id: 5,
+            id: 6,
             name: "دوائر المطورين العرب",
-            description: "مجموعة للمطورين العرب",
+            description:
+                "مجموعة للمطورين العرب لمشاركة المعرفة التقنية والمشاريع",
             members: 445,
             pulses: 789,
             invitedBy: "أحمد محمد",
-            image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3",
+            icon: "chat",
+            color: "from-orange-500 to-red-500",
+            privacy: "private",
+        },
+        {
+            id: 7,
+            name: "مجتمع القراءة",
+            description: "دائرة لمحبي القراءة ومناقشة الكتب والأدب",
+            members: 289,
+            pulses: 654,
+            invitedBy: "فاطمة أحمد",
+            icon: "heart",
+            color: "from-rose-400 to-pink-500",
+            privacy: "private",
         },
     ];
 
@@ -196,39 +232,78 @@ const CirclesPage = ({ circles }) => {
                 </div>
 
                 {/* Circles Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-fr">
                     {activeTab === "my-circles" &&
-                        safeCircles.map((circle) => (
-                            <CircleCard
-                                key={circle.id}
-                                circle={circle}
-                                type="my-circle"
-                                onSettingsClick={() =>
-                                    handleNavigateToCircleDetails(circle.id)
-                                }
-                            />
+                        (safeCircles.length > 0 ? (
+                            safeCircles.map((circle) => (
+                                <CircleCard
+                                    key={circle.id}
+                                    circle={circle}
+                                    type="my-circle"
+                                    onSettingsClick={() =>
+                                        handleNavigateToCircleDetails(circle.id)
+                                    }
+                                />
+                            ))
+                        ) : (
+                            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+                                <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-6">
+                                    <FiUsers
+                                        size={32}
+                                        className="text-gray-400"
+                                    />
+                                </div>
+                                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                                    لا توجد دوائر بعد
+                                </h3>
+                                <p className="text-gray-500 mb-6 max-w-md">
+                                    ابدأ بإنشاء دائرتك الأولى لتتواصل مع أصدقائك
+                                    وتشارك النبضات معهم
+                                </p>
+                                <button
+                                    onClick={() => setShowModal(true)}
+                                    className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:scale-105 transition-all"
+                                >
+                                    <FiPlus size={18} />
+                                    <span>إنشاء دائرة جديدة</span>
+                                </button>
+                            </div>
                         ))}
+
                     {activeTab === "discover" &&
                         discoverCircles.map((circle) => (
                             <CircleCard
                                 key={circle.id}
                                 circle={circle}
                                 type="discover"
-                                onSettingsClick={() =>
-                                    handleNavigateToCircleDetails(circle.id)
-                                }
                             />
                         ))}
+
                     {activeTab === "invites" &&
-                        circleInvites.map((circle) => (
-                            <CircleCard
-                                key={circle.id}
-                                circle={circle}
-                                type="invite"
-                                onSettingsClick={() =>
-                                    handleNavigateToCircleDetails(circle.id)
-                                }
-                            />
+                        (circleInvites.length > 0 ? (
+                            circleInvites.map((circle) => (
+                                <CircleCard
+                                    key={circle.id}
+                                    circle={circle}
+                                    type="invite"
+                                />
+                            ))
+                        ) : (
+                            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+                                <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-full flex items-center justify-center mb-6">
+                                    <FiHeart
+                                        size={32}
+                                        className="text-blue-500"
+                                    />
+                                </div>
+                                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                                    لا توجد دعوات
+                                </h3>
+                                <p className="text-gray-500 max-w-md">
+                                    عندما يدعوك أصدقاؤك للانضمام إلى دوائرهم،
+                                    ستظهر الدعوات هنا
+                                </p>
+                            </div>
                         ))}
                 </div>
             </div>
@@ -244,83 +319,233 @@ const CirclesPage = ({ circles }) => {
     );
 };
 
-const CircleCard = ({ circle, type = "my-circle", onSettingsClick }) => (
-    <div className="bg-white rounded-lg overflow-hidden shadow-sm border border-gray-100">
-        <div className="relative h-32">
-            <img
-                src={
-                    "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
-                }
-                alt={circle.name}
-                className="w-full h-full object-cover"
-            />
-            {
-                <div className="absolute top-2 right-2">
-                    <button
-                        onClick={onSettingsClick}
-                        className="p-2 bg-white/80 rounded-full hover:bg-white transition-all"
-                    >
-                        <FiSettings size={18} className="text-gray-600" />
-                    </button>
-                </div>
+const CircleCard = ({ circle, type = "my-circle", onSettingsClick }) => {
+    // Icon mapping
+    const iconMapping = {
+        star: <FiStar />,
+        heart: <FiHeart />,
+        chat: <FiMessageSquare />,
+        users: <FiUsers />,
+        settings: <FiSettings />,
+        globe: <FiGlobe />,
+    };
+
+    // Get the icon component
+    const IconComponent = iconMapping[circle.icon] || <FiUsers />;
+
+    // Color fallback - assign random color if none exists
+    let circleColor = circle.color;
+    if (!circleColor) {
+        const randomIndex = (circle.id || 0) % availableColors.length;
+        circleColor = availableColors[randomIndex].value;
+    }
+
+    // Handle different data structures for members/pulses count
+    const membersCount = circle.members_count || circle.members || 0;
+    const pulsesCount =
+        circle.pulses_count || circle.pulses || circle.total_pulses || 0;
+
+    // Format last activity for better readability
+    const formatLastActivity = (activity) => {
+        if (!activity) return "لم يتم تحديد وقت النشاط";
+
+        // If it's already formatted in Arabic, return as is
+        if (typeof activity === "string" && activity.includes("منذ")) {
+            return activity;
+        }
+
+        // Otherwise use default
+        return activity || "منذ قليل";
+    };
+
+    return (
+        <div
+            className="group relative bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+            onClick={() =>
+                type === "my-circle" && onSettingsClick && onSettingsClick()
             }
-        </div>
-        <div className="p-4">
-            <h3 className="font-semibold text-gray-800 text-lg mb-1">
-                {circle.name}
-            </h3>
-            <p className="text-sm text-gray-500 mb-3">{circle.description}</p>
+        >
+            {/* Gradient Header with Icon */}
+            <div
+                className={`relative h-24 bg-gradient-to-r ${circleColor} flex items-center justify-center`}
+            >
+                {/* Background Pattern */}
+                <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
 
-            <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                <div className="flex items-center gap-1">
-                    <FiUsers size={16} />
-                    <span>{circle.members_count || 0} عضو</span>
+                {/* Icon */}
+                <div className="relative z-10 text-white text-3xl drop-shadow-lg">
+                    {IconComponent}
                 </div>
-                <div className="flex items-center gap-1">
-                    <FiMessageSquare size={16} />
-                    <span>{circle.pulses_count || 0} نبضة</span>
-                </div>
-            </div>
 
-            {type === "invite" && (
-                <div className="text-sm text-gray-500 mb-4">
-                    دعوة من:{" "}
-                    <span className="font-medium text-gray-700">
-                        {circle.invitedBy}
-                    </span>
+                {/* Privacy Badge */}
+                <div className="absolute top-2 left-2">
+                    <div className="px-2 py-1 bg-white/20 backdrop-blur-sm rounded-full flex items-center gap-1">
+                        {circle.privacy_type === "private" ||
+                        circle.privacy === "private" ? (
+                            <FiLock size={12} className="text-white" />
+                        ) : (
+                            <FiGlobe size={12} className="text-white" />
+                        )}
+                        <span className="text-xs text-white font-medium">
+                            {circle.privacy_type === "private" ||
+                            circle.privacy === "private"
+                                ? "خاصة"
+                                : "عامة"}
+                        </span>
+                    </div>
                 </div>
-            )}
 
-            <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">
-                    {circle.lastActivity || "منذ قليل"}
-                </span>
-                {type === "my-circle" ? (
-                    <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-primary text-white hover:bg-primary/90">
-                        <FiMessageSquare size={16} />
-                        <span>إرسال نبضة</span>
-                    </button>
-                ) : type === "discover" ? (
-                    <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-primary text-white hover:bg-primary/90">
-                        <FiPlus size={16} />
-                        <span>الانضمام</span>
-                    </button>
-                ) : (
-                    <div className="flex gap-2">
-                        <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-green-500 text-white hover:bg-green-600">
-                            <FiHeart size={16} />
-                            <span>قبول</span>
-                        </button>
-                        <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-red-500 text-white hover:bg-red-600">
-                            <FiUsers size={16} />
-                            <span>رفض</span>
+                {/* Settings Button */}
+                {type === "my-circle" && (
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSettingsClick && onSettingsClick();
+                            }}
+                            className="p-2 bg-white/20 backdrop-blur-sm rounded-full hover:bg-white/30 transition-all"
+                        >
+                            <FiSettings size={16} className="text-white" />
                         </button>
                     </div>
                 )}
+
+                {/* Favorite Star (if applicable) */}
+                {circle.is_favorite && (
+                    <div className="absolute bottom-2 left-2">
+                        <div className="p-1 bg-yellow-400/90 rounded-full">
+                            <FiStar
+                                size={12}
+                                className="text-white fill-current"
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-3">
+                {/* Title and Description */}
+                <div>
+                    <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">
+                        {circle.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed min-h-[2.5rem]">
+                        {circle.description || "لا يوجد وصف"}
+                    </p>
+                </div>
+
+                {/* Stats */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1 text-blue-600">
+                            <FiUsers size={16} />
+                            <span className="text-sm font-medium">
+                                {membersCount}
+                            </span>
+                            <span className="text-xs text-gray-500">عضو</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-purple-600">
+                            <FiMessageSquare size={16} />
+                            <span className="text-sm font-medium">
+                                {pulsesCount}
+                            </span>
+                            <span className="text-xs text-gray-500">نبضة</span>
+                        </div>
+                    </div>
+
+                    {/* Activity Indicator */}
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-gray-500">نشط</span>
+                    </div>
+                </div>
+
+                {/* Invite Info (for invites) */}
+                {type === "invite" && circle.invitedBy && (
+                    <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                <FiUsers size={12} className="text-white" />
+                            </div>
+                            <span className="text-sm text-gray-700">
+                                دعوة من:{" "}
+                                <span className="font-medium text-blue-700">
+                                    {circle.invitedBy}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Action Button */}
+                <div className="pt-2">
+                    {type === "my-circle" ? (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSettingsClick && onSettingsClick();
+                            }}
+                            className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all bg-gradient-to-r ${circleColor} text-white hover:shadow-lg hover:scale-105`}
+                        >
+                            <FiMessageSquare size={16} />
+                            <span>إدارة الدائرة</span>
+                        </button>
+                    ) : type === "discover" ? (
+                        <button
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:scale-105 transition-all"
+                        >
+                            <FiPlus size={16} />
+                            <span>طلب الانضمام</span>
+                        </button>
+                    ) : (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-sm font-medium bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-md transition-all"
+                            >
+                                <FiHeart size={14} />
+                                <span>قبول</span>
+                            </button>
+                            <button
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-sm font-medium bg-gradient-to-r from-red-500 to-pink-600 text-white hover:shadow-md transition-all"
+                            >
+                                <span>رفض</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Last Activity - Made more prominent and readable */}
+                <div className="p-2 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-700">
+                                آخر نشاط
+                            </span>
+                        </div>
+                        <span className="text-sm text-gray-600 font-medium">
+                            {formatLastActivity(
+                                circle.lastActivity ||
+                                    circle.last_activity ||
+                                    circle.created_at
+                            )}
+                        </span>
+                    </div>
+                    {membersCount > 0 && (
+                        <div className="mt-1 text-xs text-gray-500">
+                            {membersCount} من الأصدقاء متصلين
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const WrappedCirclesPage = ({ circles }) => {
     return (

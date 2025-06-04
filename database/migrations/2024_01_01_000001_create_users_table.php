@@ -15,7 +15,8 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->string('name')->comment('اسم المستخدم');
             $table->string('email')->nullable()->unique()->comment('البريد الإلكتروني');
-            $table->string('phone', 20)->unique()->comment('رقم الهاتف');
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('phone', 20)->nullable()->unique()->comment('رقم الهاتف');
             $table->string('password')->comment('كلمة المرور (مشفرة)');
             $table->string('avatar_url', 1024)->nullable()->comment('رابط الصورة الشخصية');
             $table->char('avatar_fallback', 1)->nullable()->comment('الحرف الأول للاسم (يظهر عند عدم وجود صورة)');

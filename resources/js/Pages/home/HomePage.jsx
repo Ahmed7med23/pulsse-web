@@ -15,32 +15,37 @@ import { FiTrendingUp } from "react-icons/fi";
 
 import { motion } from "framer-motion";
 import { useAuth } from "../../Contexts/AuthContext";
-import { Head, usePage } from "@inertiajs/react";
+import { Head, usePage, usePoll } from "@inertiajs/react";
 import PulseCard from "./PulseCard";
+import PulseStats from "../../Components/PulseStats";
+import PushNotifications from "../../Components/PushNotifications";
 import axios from "axios";
 
 function Home() {
     const [activeTab, setActiveTab] = useState("all"); // 'all', 'received', 'sent'
     const [pulses, setPulses] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true); // للتحميل الأولي فقط
+    const [isRefreshing, setIsRefreshing] = useState(false); // للتحديث التلقائي
     const [error, setError] = useState(null);
     const [showSendPulseModal, setShowSendPulseModal] = useState(false);
-    const [pulseType, setPulseType] = useState("direct");
-    const [selectedFriend, setSelectedFriend] = useState(null);
-    const [selectedCircle, setSelectedCircle] = useState(null);
-    const [showFriendSearch, setShowFriendSearch] = useState(false);
-    const [showCircleSelection, setShowCircleSelection] = useState(false);
+    const [isPolling, setIsPolling] = useState(true);
 
-    const data = usePage();
+    const pageData = usePage();
+    const initialStats = pageData.props.pulseStats;
+    const initialPulses = pageData.props.receivedPulses;
 
     // جلب البيانات من الـ API
     useEffect(() => {
-        fetchPulses();
+        fetchPulses(true); // التحميل الأولي
     }, []);
 
-    const fetchPulses = async () => {
+    const fetchPulses = async (isInitialLoad = false) => {
         try {
-            setLoading(true);
+            if (isInitialLoad) {
+                setLoading(true); // مؤشر التحميل الكامل للتحميل الأولي فقط
+            } else {
+                setIsRefreshing(true); // مؤشر تحديث صغير للتحديث التلقائي
+            }
             setError(null);
 
             // جلب جميع النبضات (مرسلة ومستقبلة)
@@ -64,95 +69,25 @@ function Home() {
                 timeAgo: pulse.timeAgo,
                 reactions: pulse.reactions || [],
                 circleName: pulse.circleName,
+                directRecipientName: pulse.directRecipientName,
                 recipients: pulse.recipients || [],
+                recipients_count: pulse.recipients_count || 0,
+                seen: pulse.seen || false,
+                seen_at: pulse.seen_at,
             }));
 
             setPulses(formattedPulses);
         } catch (err) {
             console.error("Error fetching pulses:", err);
             setError("حدث خطأ في تحميل النبضات");
-
-            // استخدام البيانات الافتراضية في حالة الخطأ
-            setPulses(getMockPulses());
         } finally {
-            setLoading(false);
+            if (isInitialLoad) {
+                setLoading(false);
+            } else {
+                setIsRefreshing(false);
+            }
         }
     };
-
-    // البيانات الافتراضية للاحتياطي
-    const getMockPulses = () => [
-        // النبضات المستقبلة
-        {
-            id: 1,
-            type: "received",
-            pulseType: "direct",
-            user: {
-                name: "سارة أحمد",
-                avatar: "https://randomuser.me/api/portraits/women/1.jpg",
-                isOnline: true,
-            },
-            message: "أرسلت لك نبضة خاصة! 💙 أتمنى أن تكون بخير",
-            timeAgo: "منذ 5 دقائق",
-            reactions: [
-                { type: "pray", icon: "🙏", active: false, count: 0 },
-                { type: "sparkles", icon: "✨", active: false, count: 0 },
-                { type: "smile", icon: "😊", active: false, count: 0 },
-                { type: "heart", icon: "❤️", active: true, count: 1 },
-                { type: "thumbs_up", icon: "👍", active: false, count: 0 },
-                { type: "sad", icon: "😢", active: false, count: 0 },
-                { type: "surprised", icon: "😮", active: false, count: 0 },
-                { type: "angry", icon: "😡", active: false, count: 0 },
-            ],
-        },
-        {
-            id: 2,
-            type: "received",
-            pulseType: "circle",
-            user: {
-                name: "محمد علي",
-                avatar: "https://randomuser.me/api/portraits/men/2.jpg",
-                isOnline: false,
-            },
-            message:
-                "مرحباً بالجميع في دائرة أصدقاء العمل! 🎉 لنبدأ أسبوعاً رائعاً",
-            timeAgo: "منذ 15 دقيقة",
-            circleName: "أصدقاء العمل",
-            reactions: [
-                { type: "pray", icon: "🙏", active: false, count: 2 },
-                { type: "sparkles", icon: "✨", active: true, count: 5 },
-                { type: "smile", icon: "😊", active: false, count: 3 },
-                { type: "heart", icon: "❤️", active: false, count: 1 },
-                { type: "thumbs_up", icon: "👍", active: false, count: 8 },
-                { type: "sad", icon: "😢", active: false, count: 0 },
-                { type: "surprised", icon: "😮", active: false, count: 0 },
-                { type: "angry", icon: "😡", active: false, count: 0 },
-            ],
-        },
-        // نبضة مرسلة
-        {
-            id: 4,
-            type: "sent",
-            pulseType: "direct",
-            user: {
-                name: "أنت",
-                avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-                isOnline: true,
-            },
-            message: "مساء الخير! كيف حالكم اليوم؟ 😊",
-            timeAgo: "منذ ساعة",
-            recipients: [{ id: 1, name: "خالد يوسف", seen: true }],
-            reactions: [
-                { type: "pray", icon: "🙏", active: false, count: 0 },
-                { type: "sparkles", icon: "✨", active: false, count: 1 },
-                { type: "smile", icon: "😊", active: false, count: 2 },
-                { type: "heart", icon: "❤️", active: false, count: 0 },
-                { type: "thumbs_up", icon: "👍", active: false, count: 1 },
-                { type: "sad", icon: "😢", active: false, count: 0 },
-                { type: "surprised", icon: "😮", active: false, count: 0 },
-                { type: "angry", icon: "😡", active: false, count: 0 },
-            ],
-        },
-    ];
 
     // تصفية النبضات حسب التبويب النشط
     const filteredPulses = pulses.filter((pulse) => {
@@ -161,7 +96,45 @@ function Home() {
         return true; // 'all'
     });
 
-    // Loading state
+    // تحديث النبضات كل 5 ثوان باستخدام Inertia Polling
+    const { stop, start } = usePoll(
+        5000,
+        {
+            only: ["receivedPulses", "pulseStats"], // تحديث النبضات والإحصائيات
+            onSuccess: (response) => {
+                // تحديث النبضات المحلية عند نجاح الـ polling
+                if (response.props.receivedPulses) {
+                    console.log(
+                        "تم تحديث النبضات:",
+                        response.props.receivedPulses?.data?.length || 0
+                    );
+                    // تحديث صامت دون إظهار مؤشر التحميل الكبير
+                    fetchPulses(false); // تحديث تلقائي
+                }
+            },
+            onError: (error) => {
+                console.error("خطأ في تحديث النبضات:", error);
+            },
+        },
+        {
+            keepAlive: true, // الاستمرار حتى لو أصبح المكون غير نشط
+            autoStart: true, // البدء تلقائياً
+        }
+    );
+
+    // تبديل حالة الـ Polling
+    const togglePolling = () => {
+        if (isPolling) {
+            stop();
+            console.log("تم إيقاف التحديث التلقائي");
+        } else {
+            start();
+            console.log("تم تشغيل التحديث التلقائي");
+        }
+        setIsPolling(!isPolling);
+    };
+
+    // Loading state - للتحميل الأولي فقط
     if (loading) {
         return (
             <>
@@ -189,7 +162,7 @@ function Home() {
                     </div>
                     <p className="text-red-600 font-medium mb-2">{error}</p>
                     <button
-                        onClick={fetchPulses}
+                        onClick={() => fetchPulses(true)}
                         className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
                     >
                         إعادة المحاولة
@@ -203,6 +176,14 @@ function Home() {
         <>
             <Head title="الرئيسية" />
             <UserCardHome />
+
+            {/* Pulse Statistics */}
+            {initialStats && <PulseStats initialStats={initialStats} />}
+
+            {/* Push Notifications - للاختبار */}
+            <div className="mx-2 mb-4">
+                <PushNotifications />
+            </div>
 
             {/* Pulse tabs */}
             <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -232,12 +213,88 @@ function Home() {
                 </div>
             </div>
 
+            {/* Control bar */}
+            <div className="flex justify-between items-center p-4 bg-white border-b border-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900">
+                    {activeTab === "all" && "جميع النبضات"}
+                    {activeTab === "received" && "النبضات المستقبلة"}
+                    {activeTab === "sent" && "النبضات المرسلة"}
+                </h2>
+
+                <div className="flex items-center gap-3">
+                    {/* Auto-update indicator with refresh status */}
+                    <div className="flex items-center gap-2">
+                        <div
+                            className={`w-2 h-2 rounded-full ${
+                                isPolling
+                                    ? isRefreshing
+                                        ? "bg-blue-500 animate-pulse"
+                                        : "bg-green-500 animate-pulse"
+                                    : "bg-gray-400"
+                            }`}
+                        ></div>
+                        <span className="text-xs text-gray-500">
+                            {isPolling
+                                ? isRefreshing
+                                    ? "جاري التحديث..."
+                                    : "تحديث تلقائي"
+                                : "متوقف"}
+                        </span>
+                    </div>
+
+                    {/* Toggle polling button */}
+                    <button
+                        onClick={togglePolling}
+                        className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                            isPolling
+                                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                                : "bg-green-100 text-green-700 hover:bg-green-200"
+                        }`}
+                    >
+                        {isPolling ? "⏸️ إيقاف" : "▶️ تشغيل"}
+                    </button>
+
+                    {/* Manual refresh button */}
+                    <button
+                        onClick={() => fetchPulses(false)}
+                        disabled={isRefreshing}
+                        className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                            isRefreshing
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        }`}
+                    >
+                        {isRefreshing ? (
+                            <div className="flex items-center gap-1">
+                                <FiLoader className="animate-spin w-3 h-3" />
+                                <span>تحديث</span>
+                            </div>
+                        ) : (
+                            "🔄 تحديث"
+                        )}
+                    </button>
+
+                    {/* Send pulse button */}
+                    <button
+                        onClick={() => setShowSendPulseModal(true)}
+                        className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                        <FiPlus size={16} />
+                        <span>نبضة جديدة</span>
+                    </button>
+                </div>
+            </div>
+
             {/* Pulses list */}
             <div className="pb-20">
                 {filteredPulses.length > 0 ? (
                     <div className="space-y-4 p-4">
                         {filteredPulses.map((pulse) => (
-                            <PulseCard key={pulse.id} pulse={pulse} />
+                            <PulseCard
+                                key={pulse.id}
+                                pulse={pulse}
+                                onReactionUpdate={() => fetchPulses(false)}
+                            />
                         ))}
                     </div>
                 ) : (
@@ -259,6 +316,13 @@ function Home() {
                             {activeTab === "all" &&
                                 "ابدأ بإرسال نبضة أو انتظر نبضات من الأصدقاء"}
                         </p>
+                        <button
+                            onClick={() => setShowSendPulseModal(true)}
+                            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors mx-auto"
+                        >
+                            <FiPlus size={20} />
+                            <span>إرسال أول نبضة</span>
+                        </button>
                     </div>
                 )}
             </div>
@@ -267,31 +331,7 @@ function Home() {
             {showSendPulseModal && (
                 <SendPulseModal
                     onClose={() => setShowSendPulseModal(false)}
-                    onPulseSent={fetchPulses}
-                />
-            )}
-
-            {/* Friend Selection Modal */}
-            {showFriendSearch && (
-                <FriendSelectionModal
-                    friends={mockFriends}
-                    onClose={() => setShowFriendSearch(false)}
-                    onSelect={(friend) => {
-                        setSelectedFriend(friend);
-                        setShowFriendSearch(false);
-                    }}
-                />
-            )}
-
-            {/* Circle Selection Modal */}
-            {showCircleSelection && (
-                <CircleSelectionModal
-                    circles={mockCircles}
-                    onClose={() => setShowCircleSelection(false)}
-                    onSelect={(circle) => {
-                        setSelectedCircle(circle);
-                        setShowCircleSelection(false);
-                    }}
+                    onPulseSent={() => fetchPulses(false)}
                 />
             )}
         </>
@@ -447,11 +487,6 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
             return;
         }
 
-        if (pulseType === "circle" && !selectedCircle) {
-            alert("الرجاء اختيار دائرة لإرسال النبضة إليها");
-            return;
-        }
-
         try {
             setLoading(true);
 
@@ -462,8 +497,6 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
 
             if (pulseType === "direct") {
                 payload.friend_id = selectedFriend.id;
-            } else if (pulseType === "circle") {
-                payload.circle_id = selectedCircle.id;
             }
 
             const response = await axios.post("/pulses/send", payload, {
@@ -476,7 +509,7 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
             const successMessage =
                 pulseType === "direct"
                     ? `تم إرسال النبضة إلى ${selectedFriend.name} بنجاح! 🎉`
-                    : `تم إرسال النبضة إلى جميع أعضاء ${selectedCircle.name} بنجاح! 🎉`;
+                    : `تم إرسال النبضة إلى جميع أعضاء الدائرة بنجاح! 🎉`;
 
             alert(successMessage);
             onClose();
@@ -520,7 +553,6 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                             <button
                                 onClick={() => {
                                     setPulseType("direct");
-                                    setSelectedCircle(null);
                                 }}
                                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors ${
                                     pulseType === "direct"
@@ -534,7 +566,6 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                             <button
                                 onClick={() => {
                                     setPulseType("circle");
-                                    setSelectedFriend(null);
                                 }}
                                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors ${
                                     pulseType === "circle"
@@ -555,7 +586,9 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                                 اختيار الصديق
                             </label>
                             <button
-                                onClick={() => setShowFriendSearch(true)}
+                                onClick={() => {
+                                    setSelectedFriend(null);
+                                }}
                                 className="w-full p-3 border border-gray-300 rounded-lg text-right hover:border-primary focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
                             >
                                 {selectedFriend ? (
@@ -577,40 +610,6 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
                                 ) : (
                                     <span className="text-gray-500">
                                         اختر صديقاً...
-                                    </span>
-                                )}
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Circle Selection (for circle pulses) */}
-                    {pulseType === "circle" && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                اختيار الدائرة
-                            </label>
-                            <button
-                                onClick={() => setShowCircleSelection(true)}
-                                className="w-full p-3 border border-gray-300 rounded-lg text-right hover:border-primary focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                            >
-                                {selectedCircle ? (
-                                    <div className="flex items-center gap-3">
-                                        <div
-                                            className={`w-8 h-8 rounded-full bg-gradient-to-r ${selectedCircle.color}`}
-                                        ></div>
-                                        <div className="text-right">
-                                            <div className="text-gray-900 font-medium">
-                                                {selectedCircle.name}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                {selectedCircle.members_count}{" "}
-                                                عضو
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <span className="text-gray-500">
-                                        اختر دائرة...
                                     </span>
                                 )}
                             </button>
@@ -670,110 +669,6 @@ const SendPulseModal = ({ onClose, onPulseSent }) => {
         </div>
     );
 };
-
-/**
- * Modal for selecting a friend
- */
-function FriendSelectionModal({ friends, onClose, onSelect }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg w-full max-w-md max-h-96 overflow-hidden">
-                <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold">اختيار صديق</h3>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-600"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                </div>
-
-                <div className="p-4 overflow-y-auto max-h-80">
-                    <div className="space-y-2">
-                        {friends.map((friend) => (
-                            <button
-                                key={friend.id}
-                                onClick={() => onSelect(friend)}
-                                className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
-                            >
-                                <img
-                                    src={friend.avatar}
-                                    alt={friend.name}
-                                    className="w-10 h-10 rounded-full object-cover"
-                                />
-                                <div className="flex-1 text-right">
-                                    <div className="font-medium text-gray-900">
-                                        {friend.name}
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                        {friend.isOnline
-                                            ? "متصل الآن"
-                                            : "غير متصل"}
-                                    </div>
-                                </div>
-                                {friend.isOnline && (
-                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/**
- * Modal for selecting a circle
- */
-function CircleSelectionModal({ circles, onClose, onSelect }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg w-full max-w-md max-h-96 overflow-hidden">
-                <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold">اختيار دائرة</h3>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-600"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                </div>
-
-                <div className="p-4 overflow-y-auto max-h-80">
-                    <div className="space-y-2">
-                        {circles.map((circle) => (
-                            <button
-                                key={circle.id}
-                                onClick={() => onSelect(circle)}
-                                className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
-                            >
-                                <div
-                                    className={`w-10 h-10 rounded-full bg-gradient-to-r ${circle.color} flex items-center justify-center`}
-                                >
-                                    <FiUsers className="text-white" size={20} />
-                                </div>
-                                <div className="flex-1 text-right">
-                                    <div className="font-medium text-gray-900">
-                                        {circle.name}
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                        {circle.members_count} عضو •{" "}
-                                        {circle.description}
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 const HomePage = () => {
     return (

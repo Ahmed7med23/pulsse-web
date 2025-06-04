@@ -237,7 +237,7 @@ const FriendsPage = ({
                         {/* Show different info based on type */}
                         {type === "friend" && (
                             <>
-                                <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-500">
                                     {friendData.mutualFriends} أصدقاء مشتركين
                                 </p>
                                 {friendData.lastPulseSent && (
@@ -252,9 +252,9 @@ const FriendsPage = ({
                                 )}
                                 {friendData.lastActive &&
                                     !friendData.isOnline && (
-                                        <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-400 mt-1">
                                             آخر نشاط: {friendData.lastActive}
-                                        </p>
+                            </p>
                                     )}
                             </>
                         )}
@@ -265,10 +265,10 @@ const FriendsPage = ({
                                 <p className="text-sm text-gray-500">
                                     {friendData.mutualFriends} أصدقاء مشتركين
                                 </p>
-                                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                                    <FiClock size={14} />
+                            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                <FiClock size={14} />
                                     {friendData.sentAt}
-                                </p>
+                            </p>
                             </>
                         )}
                     </div>

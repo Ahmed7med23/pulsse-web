@@ -314,9 +314,9 @@ class FriendsController extends Controller
                 'previously_rejected' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم في الوقت الحالي'
             ];
 
-            return response()->json([
+                return response()->json([
                 'message' => $messages[$existingRelationship] ?? 'يوجد علاقة موجودة بالفعل'
-            ], 422);
+                ], 422);
         }
 
         // Create new friend request

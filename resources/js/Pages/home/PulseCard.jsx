@@ -21,6 +21,7 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
     const [selectedReactionType, setSelectedReactionType] = useState(null);
     const [reactionLoading, setReactionLoading] = useState(false);
     const [localReactions, setLocalReactions] = useState(pulse.reactions);
+    const [localPulse, setLocalPulse] = useState(pulse);
 
     // Mapping من reaction types إلى emojis
     const reactionMapping = {
@@ -116,13 +117,62 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
         }
     };
 
+    const handleMarkAsSeen = async (pulseId) => {
+        try {
+            const response = await axios.post(
+                `/pulses/${pulseId}/mark-seen`,
+                {},
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            // تحديث الحالة المحلية للنبضة
+            setLocalPulse((prev) => ({
+                ...prev,
+                seen: true,
+                seen_at: response.data.seen_at,
+            }));
+
+            // تحديث البيانات الرئيسية إذا كان هناك callback
+            if (onReactionUpdate) {
+                onReactionUpdate();
+            }
+
+            console.log("Pulse marked as seen:", response.data);
+        } catch (error) {
+            console.error("Error marking pulse as seen:", error);
+            alert(
+                error.response?.data?.message ||
+                    "حدث خطأ في تحديد النبضة كمقروءة"
+            );
+        }
+    };
+
+    // تحديد النبضة كمقروءة تلقائياً عند النقر عليها
+    const handlePulseClick = () => {
+        if (!isPulseFromUser && !localPulse.seen) {
+            handleMarkAsSeen(localPulse.id);
+        }
+    };
+
     const isPulseFromUser = pulse.type === "sent";
     const isDirectPulse = pulse.pulseType === "direct";
     const isCirclePulse = pulse.pulseType === "circle";
 
     return (
         <>
-            <div className="mx-2 bg-white border border-pink-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div
+                className={`mx-2 bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+                    !isPulseFromUser && !localPulse.seen
+                        ? "border-blue-200 bg-blue-50/30"
+                        : "border-pink-200"
+                }`}
+                onClick={handlePulseClick}
+            >
                 {/* Header */}
                 <div className="flex items-start gap-3 mb-3">
                     {/* Avatar */}
@@ -136,48 +186,155 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                         {pulse.user.isOnline && (
                             <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
                         )}
+
+                        {/* Unread indicator for received pulses */}
+                        {!isPulseFromUser && !localPulse.seen && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                            </span>
+                        )}
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                        {/* User name and pulse type */}
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-gray-800 truncate">
-                                {pulse.user.name}
-                            </span>
+                        {/* Pulse type and recipient info for sent pulses */}
+                        {isPulseFromUser ? (
+                            <div className="mb-2">
+                                {isDirectPulse &&
+                                pulse.recipients &&
+                                pulse.recipients.length > 0 ? (
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                                            <FiUser
+                                                size={14}
+                                                className="text-blue-500"
+                                            />
+                                            <span className="font-medium">
+                                                نبضة إلى:
+                                            </span>
+                                            <span className="font-bold text-blue-600">
+                                                {pulse.recipients[0].name}
+                                            </span>
+                                        </div>
+                                        {pulse.recipients[0].seen && (
+                                            <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                                <FiEye size={10} />
+                                                <span>تم المشاهدة</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : isCirclePulse ? (
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                                            <FiUsers
+                                                size={14}
+                                                className="text-purple-500"
+                                            />
+                                            <span className="font-medium">
+                                                نبضة إلى دائرة:
+                                            </span>
+                                            <span className="font-bold text-purple-600">
+                                                {pulse.circleName || "دائرة"}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                                            <FiUsers size={10} />
+                                            <span>
+                                                {pulse.recipients_count} أشخاص
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : null}
 
-                            {/* Pulse type indicator */}
-                            {isDirectPulse && (
-                                <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                                    <FiUser size={12} />
-                                    <span>مباشرة</span>
+                                {/* Sender name for sent pulses */}
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-gray-800">
+                                        {pulse.user.name} (أنت)
+                                    </span>
+                                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                        مرسلة
+                                    </span>
                                 </div>
-                            )}
+                            </div>
+                        ) : (
+                            // Original display for received pulses
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-gray-800 truncate">
+                                    {pulse.user.name}
+                                </span>
 
-                            {isCirclePulse && (
-                                <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-                                    <FiUsers size={12} />
-                                    <span>{pulse.circleName || "دائرة"}</span>
-                                </div>
-                            )}
-                        </div>
+                                {/* Pulse type indicator for received pulses */}
+                                {isDirectPulse && (
+                                    <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                        <FiUser size={12} />
+                                        <span>مباشرة</span>
+                                    </div>
+                                )}
+
+                                {isCirclePulse && (
+                                    <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                                        <FiUsers size={12} />
+                                        <span>
+                                            {pulse.circleName || "دائرة"}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Message */}
                         <p className="text-gray-700 text-sm mb-2 leading-relaxed">
                             {pulse.message}
                         </p>
 
-                        {/* Recipients info for sent pulses */}
+                        {/* Enhanced recipients info for sent pulses */}
                         {isPulseFromUser && pulse.recipients && (
-                            <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                                <FiEye size={12} />
-                                <span>
-                                    {
-                                        pulse.recipients.filter((r) => r.seen)
-                                            .length
-                                    }{" "}
-                                    من {pulse.recipients.length} شاهد
-                                </span>
+                            <div className="mb-2">
+                                {isDirectPulse ? (
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <FiEye size={12} />
+                                        <span>
+                                            {pulse.recipients[0].seen ? (
+                                                <span className="text-green-600 font-medium">
+                                                    تم مشاهدة النبضة ✓
+                                                </span>
+                                            ) : (
+                                                <span className="text-orange-600">
+                                                    لم يتم المشاهدة بعد
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                ) : isCirclePulse ? (
+                                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                            <FiEye size={12} />
+                                            <span>
+                                                {
+                                                    pulse.recipients.filter(
+                                                        (r) => r.seen
+                                                    ).length
+                                                }{" "}
+                                                من {pulse.recipients.length}{" "}
+                                                شاهد
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                            <span className="text-green-600">
+                                                {Math.round(
+                                                    (pulse.recipients.filter(
+                                                        (r) => r.seen
+                                                    ).length /
+                                                        pulse.recipients
+                                                            .length) *
+                                                        100
+                                                )}
+                                                % معدل المشاهدة
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : null}
                             </div>
                         )}
 
@@ -185,15 +342,48 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                         <div className="flex justify-between items-center text-xs text-gray-400">
                             <span>{pulse.timeAgo}</span>
                             {isPulseFromUser && (
-                                <span className="text-green-600">مرسلة</span>
+                                <div className="flex items-center gap-2">
+                                    {isDirectPulse && (
+                                        <span className="text-blue-600">
+                                            نبضة مباشرة
+                                        </span>
+                                    )}
+                                    {isCirclePulse && (
+                                        <span className="text-purple-600">
+                                            نبضة جماعية
+                                        </span>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
 
                     {/* More options */}
-                    <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-                        <FiMoreHorizontal size={16} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* Mark as seen button for received unseen pulses */}
+                        {!isPulseFromUser && !localPulse.seen && (
+                            <button
+                                onClick={() => handleMarkAsSeen(localPulse.id)}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-full transition-colors"
+                                title="تحديد كمقروءة"
+                            >
+                                <FiEye size={12} />
+                                <span>مقروءة</span>
+                            </button>
+                        )}
+
+                        {/* Show seen status for received pulses */}
+                        {!isPulseFromUser && localPulse.seen && (
+                            <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                <FiEye size={10} />
+                                <span>تم القراءة</span>
+                            </div>
+                        )}
+
+                        <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                            <FiMoreHorizontal size={16} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Reactions Section */}

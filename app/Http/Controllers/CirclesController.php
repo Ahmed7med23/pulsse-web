@@ -16,15 +16,43 @@ class CirclesController extends Controller
      */
     public function index(): Response
     {
-        $circles = Auth::user()->circles()->latest()->get();
+        $userId = Auth::id();
+
+        // Get circles with actual member counts
+        $circles = Circle::where('user_id', $userId)
+            ->withCount(['members'])
+            ->latest()
+            ->get()
+            ->map(function ($circle) {
+                // Calculate pulse count directly
+                $pulsesCount = DB::table('pulses')
+                    ->where('type', 'circle')
+                    ->whereRaw("JSON_EXTRACT(metadata, '$.circle_id') = ?", [$circle->id])
+                    ->count();
+
+                return [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                    'description' => $circle->description,
+                    'color' => $circle->color,
+                    'icon' => $circle->icon,
+                    'privacy_type' => $circle->privacy_type,
+                    'members_count' => $circle->members_count,
+                    'pulses_count' => $pulsesCount,
+                    'is_favorite' => $circle->is_favorite,
+                    'created_at' => $circle->created_at,
+                    'lastActivity' => $circle->updated_at->diffForHumans(),
+                    'last_activity' => $circle->updated_at->diffForHumans(),
+                ];
+            });
 
         // Debug: Add some mock data if no circles exist
         if ($circles->isEmpty()) {
             $circles = collect([
-                (object) [
+                [
                     'id' => 1,
                     'name' => 'دائرة الأصدقاء',
-                    'description' => 'دائرة للأصدقاء المقربين',
+                    'description' => 'دائرة للأصدقاء المقربين لمشاركة اللحظات الجميلة',
                     'color' => 'from-blue-400 to-indigo-500',
                     'icon' => 'users',
                     'privacy_type' => 'private',
@@ -32,11 +60,13 @@ class CirclesController extends Controller
                     'pulses_count' => 12,
                     'is_favorite' => true,
                     'created_at' => now(),
+                    'lastActivity' => 'منذ 5 دقائق',
+                    'last_activity' => 'منذ 5 دقائق',
                 ],
-                (object) [
+                [
                     'id' => 2,
                     'name' => 'دائرة العمل',
-                    'description' => 'زملاء العمل والمشاريع',
+                    'description' => 'زملاء العمل والمشاريع المهنية والتطوير المهني',
                     'color' => 'from-green-400 to-emerald-500',
                     'icon' => 'settings',
                     'privacy_type' => 'private',
@@ -44,6 +74,22 @@ class CirclesController extends Controller
                     'pulses_count' => 25,
                     'is_favorite' => false,
                     'created_at' => now(),
+                    'lastActivity' => 'منذ ساعتين',
+                    'last_activity' => 'منذ ساعتين',
+                ],
+                [
+                    'id' => 3,
+                    'name' => 'دائرة الهوايات',
+                    'description' => 'مشاركة الاهتمامات والهوايات المختلفة',
+                    'color' => 'from-purple-400 to-pink-500',
+                    'icon' => 'heart',
+                    'privacy_type' => 'public',
+                    'members_count' => 12,
+                    'pulses_count' => 18,
+                    'is_favorite' => true,
+                    'created_at' => now(),
+                    'lastActivity' => 'منذ يوم واحد',
+                    'last_activity' => 'منذ يوم واحد',
                 ]
             ]);
         }
@@ -67,8 +113,9 @@ class CirclesController extends Controller
         ]);
 
         try {
-            $circle = Auth::user()->circles()->create([
+            $circle = Circle::create([
                 ...$validated,
+                'user_id' => Auth::id(),
                 'is_active' => true,
                 'pulse_strength' => 0,
                 'is_favorite' => false,
@@ -100,6 +147,12 @@ class CirclesController extends Controller
         if ($circle->user_id !== Auth::id()) {
             abort(403, 'غير مخول للوصول لهذه الدائرة');
         }
+
+        // Calculate actual pulse count for this circle
+        $pulsesCount = DB::table('pulses')
+            ->where('type', 'circle')
+            ->whereRaw("JSON_EXTRACT(metadata, '$.circle_id') = ?", [$circle->id])
+            ->count();
 
         // Get circle members with their details
         $members = DB::table('circle_members')
@@ -133,9 +186,11 @@ class CirclesController extends Controller
                 'icon' => $circle->icon,
                 'privacy_type' => $circle->privacy_type,
                 'members_count' => $circle->members_count,
-                'pulses_count' => $circle->pulses_count,
+                'pulses_count' => $pulsesCount,
                 'is_favorite' => $circle->is_favorite,
                 'created_at' => $circle->created_at->diffForHumans(),
+                'lastActivity' => $circle->updated_at->diffForHumans(),
+                'last_activity' => $circle->updated_at->diffForHumans(),
             ],
             'members' => $members
         ]);
@@ -144,7 +199,7 @@ class CirclesController extends Controller
     /**
      * Get circle members (API endpoint)
      */
-    public function getCircleMembers(Request $request, $circleId)
+    public function getCircleMembers($circleId)
     {
         $circle = Circle::where('id', $circleId)
             ->where('user_id', Auth::id())
@@ -179,15 +234,7 @@ class CirclesController extends Controller
                 ];
             });
 
-        return response()->json([
-            'members' => $members,
-            'circle' => [
-                'id' => $circle->id,
-                'name' => $circle->name,
-                'members_count' => $circle->members_count,
-            ],
-            'success' => true
-        ]);
+        return response()->json($members);
     }
 
     /**
@@ -350,7 +397,7 @@ class CirclesController extends Controller
      */
     public function getUserCircles()
     {
-        $circles = Auth::user()->circles()
+        $circles = Circle::where('user_id', Auth::id())
             ->select('id', 'name', 'color', 'icon', 'members_count')
             ->where('is_active', true)
             ->latest()
@@ -391,7 +438,7 @@ class CirclesController extends Controller
         }
 
         // Get all user's circles with membership status
-        $circles = Auth::user()->circles()
+        $circles = Circle::where('user_id', Auth::id())
             ->select('id', 'name', 'color', 'icon', 'members_count')
             ->where('is_active', true)
             ->latest()

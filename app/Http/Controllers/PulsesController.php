@@ -18,17 +18,52 @@ class PulsesController extends Controller
 
     public function index()
     {
+        $userId = Auth::id();
+
         // النبضات المرسلة إليك
-        $receivedPulses = PulseRecipient::where('recipient_id', Auth::id())
+        $receivedPulses = PulseRecipient::where('recipient_id', $userId)
             ->with(['pulse.sender'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        // return $receivedPulses;
+        // إحصائيات النبضات للـ Polling
+        $pulseStats = [
+            'totalSent' => Pulse::where('sender_id', $userId)->count(),
+            'totalReceived' => PulseRecipient::where('recipient_id', $userId)->count(),
+            'unreadCount' => PulseRecipient::where('recipient_id', $userId)
+                ->whereNull('seen_at')->count(),
+            'activeFriends' => DB::table('user_friendships')
+                ->where('user_id', $userId)
+                ->where('is_blocked', false)
+                ->count(),
+            'engagementRate' => $this->calculateEngagementRate($userId),
+            'lastActivity' => PulseRecipient::where('recipient_id', $userId)
+                ->latest('created_at')
+                ->value('created_at'),
+        ];
 
         return Inertia::render('home/HomePage', [
             'receivedPulses' => $receivedPulses,
+            'pulseStats' => $pulseStats,
         ]);
+    }
+
+    /**
+     * حساب معدل التفاعل
+     */
+    private function calculateEngagementRate($userId)
+    {
+        $totalSent = Pulse::where('sender_id', $userId)->count();
+
+        if ($totalSent === 0) {
+            return 0;
+        }
+
+        $totalReactions = PulseReaction::whereHas('pulse', function ($query) use ($userId) {
+            $query->where('sender_id', $userId);
+        })->count();
+
+        return round(($totalReactions / $totalSent) * 100, 1);
     }
 
     /**
@@ -380,6 +415,12 @@ class PulsesController extends Controller
                     $circleName = $pulse->metadata['circle_name'];
                 }
 
+                // For direct pulses, get the recipient info from metadata for better display
+                $directRecipientName = null;
+                if ($pulse->isDirect() && isset($pulse->metadata['direct_recipient_name'])) {
+                    $directRecipientName = $pulse->metadata['direct_recipient_name'];
+                }
+
                 return [
                     'id' => $pulse->id,
                     'type' => 'sent',
@@ -393,6 +434,7 @@ class PulsesController extends Controller
                     'reactions' => $reactionsSummary,
                     'recipients_count' => $pulse->recipients->count(),
                     'circleName' => $circleName,
+                    'directRecipientName' => $directRecipientName,
                     'recipients' => $pulse->recipients->map(function ($recipient) {
                         return [
                             'id' => $recipient->recipient->id,
@@ -529,5 +571,35 @@ class PulsesController extends Controller
             });
 
         return response()->json($users);
+    }
+
+    /**
+     * Mark a pulse as seen by the current user
+     */
+    public function markAsSeen($pulseId)
+    {
+        $userId = Auth::id();
+
+        // Find the pulse recipient record for this user
+        $recipient = PulseRecipient::where('pulse_id', $pulseId)
+            ->where('recipient_id', $userId)
+            ->whereNull('seen_at')
+            ->first();
+
+        if (!$recipient) {
+            return response()->json([
+                'message' => 'النبضة غير موجودة أو تم قراءتها مسبقاً'
+            ], 404);
+        }
+
+        // Mark as seen
+        $recipient->update([
+            'seen_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'تم تحديد النبضة كمقروءة',
+            'seen_at' => $recipient->seen_at->diffForHumans()
+        ]);
     }
 }

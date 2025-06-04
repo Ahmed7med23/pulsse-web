@@ -202,6 +202,30 @@ class User extends Authenticatable
     }
 
     /**
+     * اشتراكات الإشعارات للمستخدم
+     */
+    public function pushSubscriptions()
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
+    /**
+     * الحصول على اشتراكات الإشعارات النشطة
+     */
+    public function activePushSubscriptions()
+    {
+        return $this->pushSubscriptions()->where('is_active', true);
+    }
+
+    /**
+     * تحديد طرق الإشعارات للمستخدم
+     */
+    public function routeNotificationForWebPush()
+    {
+        return $this->activePushSubscriptions()->get();
+    }
+
+    /**
      * فحص الصداقة مع مستخدم آخر
      */
     public function isFriendWith(User $user): bool

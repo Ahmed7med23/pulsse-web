@@ -50,6 +50,8 @@ class AuthController extends Controller
         // البحث عن المستخدم أولاً
         $user = User::where('phone', $phone)->first();
 
+        // return Hash::make($request->password);
+
         // التحقق من وجود المستخدم وكلمة المرور
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([

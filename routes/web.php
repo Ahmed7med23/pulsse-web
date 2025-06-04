@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 // Routes requiring authentication and verification
 Route::middleware(['auth', 'verified-user'])->group(function () {
@@ -50,6 +51,7 @@ Route::middleware(['auth', 'verified-user'])->group(function () {
     Route::get('/pulses/all', [PulsesController::class, 'allPulses'])->name('pulses.all');
     Route::post('/pulses/react', [PulsesController::class, 'toggleReaction'])->name('pulses.react');
     Route::get('/pulses/{pulse}/reactions/{reactionType}', [PulsesController::class, 'getReactionUsers'])->name('pulses.reaction-users');
+    Route::post('/pulses/{pulse}/mark-seen', [PulsesController::class, 'markAsSeen'])->name('pulses.mark-seen');
 
     // Pulse Reactions
     Route::post('/pulse-reactions/react', [PulseReactionController::class, 'react'])->name('pulse-reactions.react');
@@ -256,3 +258,48 @@ Route::get('/test-circles', function () {
         ]
     ]);
 })->name('test.circles');
+
+// Temporary test route without authentication for testing circle members
+Route::get('/test-api/circles/{circleId}/members', function ($circleId) {
+    // Simulate being logged in as the circle owner
+    // Circle 1 is owned by user 4
+    $userId = $circleId == 1 ? 4 : 1;
+
+    $circle = App\Models\Circle::where('id', $circleId)
+        ->where('user_id', $userId)
+        ->first();
+
+    if (!$circle) {
+        return response()->json([
+            'message' => 'Circle not found or you do not have permission to view it.',
+            'debug' => [
+                'circleId' => $circleId,
+                'userId' => $userId,
+                'circleExists' => App\Models\Circle::where('id', $circleId)->exists(),
+                'circleOwner' => App\Models\Circle::where('id', $circleId)->value('user_id')
+            ]
+        ], 403);
+    }
+
+    $members = DB::table('circle_members')
+        ->join('users', 'circle_members.user_id', '=', 'users.id')
+        ->where('circle_members.circle_id', $circleId)
+        ->select(
+            'users.id',
+            'users.name',
+            'users.avatar_url',
+            'circle_members.added_at'
+        )
+        ->orderBy('circle_members.created_at', 'desc')
+        ->get()
+        ->map(function ($member) {
+            return [
+                'id' => $member->id,
+                'name' => $member->name,
+                'avatar' => $member->avatar_url ?: 'https://ui-avatars.com/api/?name=' . urlencode($member->name) . '&background=random',
+                'added_at' => \Carbon\Carbon::parse($member->added_at)->diffForHumans(),
+            ];
+        });
+
+    return response()->json($members);
+})->name('test.circles.members');

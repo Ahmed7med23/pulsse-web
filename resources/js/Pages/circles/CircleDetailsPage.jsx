@@ -20,6 +20,7 @@ import {
     FiSend,
     FiX,
     FiLoader,
+    FiArrowRight,
 } from "react-icons/fi";
 import axios from "axios";
 
@@ -66,6 +67,11 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showSendPulseModal, setShowSendPulseModal] = useState(false);
+    const [circleStats, setCircleStats] = useState({
+        members_count: safeCircle.members_count || 0,
+        pulses_count: safeCircle.pulses_count || 0,
+    });
+    const [refreshingStats, setRefreshingStats] = useState(false);
 
     const iconMapping = {
         star: <FiStar />,
@@ -81,21 +87,60 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
         fetchMembers();
     }, [safeCircle.id]);
 
+    // Update circle stats when circle data changes
+    useEffect(() => {
+        setCircleStats({
+            members_count: safeCircle.members_count || 0,
+            pulses_count: safeCircle.pulses_count || 0,
+        });
+    }, [safeCircle]);
+
+    const refreshCircleStats = async () => {
+        try {
+            setRefreshingStats(true);
+            // Refresh the entire page to get updated stats from backend
+            router.reload({ only: ["circle"] });
+        } catch (error) {
+            console.error("Error refreshing circle stats:", error);
+        } finally {
+            setRefreshingStats(false);
+        }
+    };
+
     const fetchMembers = async () => {
         try {
             setLoading(true);
+            setError(null);
             const response = await axios.get(
-                `/api/circles/${safeCircle.id}/members`
+                `/api/circles/${safeCircle.id}/members`,
+                {
+                    headers: {
+                        Accept: "application/json",
+                    },
+                }
             );
 
-            // Ensure the response data is an array
+            console.log("API Response:", response.data); // للتحقق من البيانات
+
+            // الآن API يرجع البيانات مباشرة كمصفوفة
             const membersData = Array.isArray(response.data)
                 ? response.data
-                : [];
+                : response.data.members || [];
+
+            console.log("Members Data:", membersData); // للتحقق من البيانات المعالجة
+
             setMembers(membersData);
         } catch (err) {
             console.error("Error fetching members:", err);
             setError("حدث خطأ في تحميل أعضاء الدائرة");
+
+            // في حالة الخطأ، اعرض رسالة واضحة
+            if (err.response?.status === 403) {
+                setError("لا يمكنك الوصول لهذه الدائرة");
+            } else if (err.response?.status === 404) {
+                setError("الدائرة غير موجودة");
+            }
+
             // Keep existing members or use mock data as fallback
             if (members.length === 0) {
                 setMembers(mockInitialMembers);
@@ -204,7 +249,7 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                             onClick={() => router.visit("/circles")}
                             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                         >
-                            <FiArrowLeft size={20} className="text-gray-600" />
+                            <FiArrowRight size={20} className="text-gray-600" />
                         </button>
                         <div>
                             <h1 className="text-2xl font-bold text-gray-800">
@@ -277,38 +322,101 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                         )}
                     </div>
 
-                    {/* Members Count */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-100">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-full">
-                                <FiUsers className="text-blue-600" size={24} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-2xl text-gray-800">
-                                    {Array.isArray(members)
-                                        ? members.length
-                                        : 0}
-                                </h3>
-                                <p className="text-gray-600 text-sm">الأعضاء</p>
+                    {/* Statistics */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Members Count */}
+                        <div className="bg-white rounded-xl p-6 border border-gray-100 hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-blue-100 rounded-full">
+                                        <FiUsers
+                                            className="text-blue-600"
+                                            size={24}
+                                        />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-2xl text-gray-800">
+                                            {Array.isArray(members)
+                                                ? members.length
+                                                : circleStats.members_count}
+                                        </h3>
+                                        <p className="text-gray-600 text-sm">
+                                            الأعضاء
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={refreshCircleStats}
+                                    disabled={refreshingStats}
+                                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                    title="تحديث الإحصائيات"
+                                >
+                                    <FiActivity
+                                        size={16}
+                                        className={
+                                            refreshingStats
+                                                ? "animate-spin"
+                                                : ""
+                                        }
+                                    />
+                                </button>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Pulses Count */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-100">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-purple-100 rounded-full">
-                                <FiMessageSquare
-                                    className="text-purple-600"
-                                    size={24}
-                                />
+                        {/* Pulses Count */}
+                        <div className="bg-white rounded-xl p-6 border border-gray-100 hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-purple-100 rounded-full">
+                                        <FiMessageSquare
+                                            className="text-purple-600"
+                                            size={24}
+                                        />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-2xl text-gray-800">
+                                            {circleStats.pulses_count}
+                                        </h3>
+                                        <p className="text-gray-600 text-sm">
+                                            النبضات
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {circleStats.pulses_count > 0 && (
+                                        <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                                            نشط
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={refreshCircleStats}
+                                        disabled={refreshingStats}
+                                        className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                                        title="تحديث الإحصائيات"
+                                    >
+                                        <FiActivity
+                                            size={16}
+                                            className={
+                                                refreshingStats
+                                                    ? "animate-spin"
+                                                    : ""
+                                            }
+                                        />
+                                    </button>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-2xl text-gray-800">
-                                    {safeCircle.pulses_count || 0}
-                                </h3>
-                                <p className="text-gray-600 text-sm">النبضات</p>
-                            </div>
+
+                            {/* Additional pulse info */}
+                            {circleStats.pulses_count > 0 && (
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <p className="text-xs text-gray-500">
+                                        آخر نبضة:{" "}
+                                        {safeCircle.lastActivity ||
+                                            safeCircle.last_activity ||
+                                            "غير محدد"}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -322,26 +430,66 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                                 أعضاء الدائرة (
                                 {Array.isArray(members) ? members.length : 0})
                             </h2>
-                            {(!Array.isArray(members) ||
-                                members.length === 0) && (
+                            <div className="flex items-center gap-2">
+                                {/* Manual refresh button */}
                                 <button
-                                    onClick={handleGoToAddMembers}
-                                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                    onClick={fetchMembers}
+                                    disabled={loading}
+                                    className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                                        loading
+                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                            : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    }`}
                                 >
-                                    إضافة الأعضاء الأوائل
+                                    {loading ? (
+                                        <div className="flex items-center gap-1">
+                                            <FiLoader className="animate-spin w-3 h-3" />
+                                            <span>تحديث</span>
+                                        </div>
+                                    ) : (
+                                        "🔄 تحديث"
+                                    )}
                                 </button>
-                            )}
+
+                                {(!Array.isArray(members) ||
+                                    members.length === 0) &&
+                                    !loading && (
+                                        <button
+                                            onClick={handleGoToAddMembers}
+                                            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                        >
+                                            إضافة الأعضاء الأوائل
+                                        </button>
+                                    )}
+                            </div>
                         </div>
                     </div>
 
                     <div className="p-6">
                         {loading ? (
                             <div className="flex items-center justify-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                <div className="flex items-center gap-3 text-blue-600">
+                                    <FiLoader
+                                        className="animate-spin"
+                                        size={24}
+                                    />
+                                    <span>جاري تحميل الأعضاء...</span>
+                                </div>
                             </div>
                         ) : error ? (
                             <div className="text-center py-8">
-                                <p className="text-red-600">{error}</p>
+                                <div className="text-red-500 mb-4">
+                                    <FiUsers size={48} className="mx-auto" />
+                                </div>
+                                <p className="text-red-600 font-medium mb-4">
+                                    {error}
+                                </p>
+                                <button
+                                    onClick={fetchMembers}
+                                    className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                                >
+                                    إعادة المحاولة
+                                </button>
                             </div>
                         ) : !Array.isArray(members) || members.length === 0 ? (
                             <div className="text-center py-12">
@@ -353,7 +501,8 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                                     لا يوجد أعضاء في هذه الدائرة
                                 </h3>
                                 <p className="text-gray-400 mb-6">
-                                    ابدأ بإضافة أصدقائك إلى هذه الدائرة
+                                    ابدأ بإضافة أصدقائك إلى هذه الدائرة لتتمكن
+                                    من إرسال النبضات الجماعية
                                 </p>
                                 <button
                                     onClick={handleGoToAddMembers}
@@ -364,10 +513,9 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {Array.isArray(members) &&
-                                members.length > 0 ? (
-                                    members.map((member) => (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {members.map((member) => (
                                         <MemberCard
                                             key={member.id}
                                             member={member}
@@ -381,19 +529,22 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                                                 removingMember === member.id
                                             }
                                         />
-                                    ))
-                                ) : (
-                                    <div className="col-span-full text-center py-8">
-                                        <FiUsers
-                                            size={48}
-                                            className="text-gray-300 mx-auto mb-4"
-                                        />
-                                        <p className="text-gray-500">
-                                            لا توجد بيانات أعضاء متوفرة
-                                        </p>
+                                    ))}
+                                </div>
+
+                                {/* Add more members button */}
+                                {members.length > 0 && (
+                                    <div className="mt-6 text-center">
+                                        <button
+                                            onClick={handleGoToAddMembers}
+                                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 mx-auto"
+                                        >
+                                            <FiUserPlus size={16} />
+                                            إضافة المزيد من الأعضاء
+                                        </button>
                                     </div>
                                 )}
-                            </div>
+                            </>
                         )}
                     </div>
                 </div>
@@ -412,9 +563,10 @@ const CircleDetailsPage = ({ circle, members: initialMembers }) => {
                 <SendCirclePulseModal
                     circle={safeCircle}
                     onClose={() => setShowSendPulseModal(false)}
-                    onPulseSent={() => {
+                    onPulseSent={(success) => {
                         setShowSendPulseModal(false);
-                        // Could add a success message here
+                        // Refresh circle stats after sending pulse
+                        refreshCircleStats();
                     }}
                 />
             )}
@@ -485,8 +637,10 @@ const SendCirclePulseModal = ({ circle, onClose, onPulseSent }) => {
                 circle_id: circle.id,
             });
 
-            alert("تم إرسال النبضة إلى جميع أعضاء الدائرة بنجاح! 🎉");
-            onPulseSent();
+            if (response.data.message) {
+                alert("تم إرسال النبضة إلى جميع أعضاء الدائرة بنجاح! 🎉");
+                onPulseSent(true); // Pass success flag
+            }
         } catch (error) {
             console.error("Error sending circle pulse:", error);
             alert(error.response?.data?.message || "حدث خطأ في إرسال النبضة");
