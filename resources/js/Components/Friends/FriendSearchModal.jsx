@@ -584,13 +584,70 @@ const FriendSearchModal = ({ isOpen, onClose }) => {
 const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
+    const [showDefaultPulses, setShowDefaultPulses] = useState(true);
 
-    const handleSendPulse = async () => {
-        if (!message.trim()) {
-            alert("الرجاء كتابة رسالة النبضة");
-            return;
+    // النبضات الافتراضية
+    const defaultPulses = [
+        {
+            id: 1,
+            emoji: "🎉",
+            title: "تهنئة عيد الأضحى",
+            message:
+                "كل عام وأنت بخير بمناسبة عيد الأضحى المبارك! عساكم من عواده 🎉🐑",
+            color: "bg-green-50 border-green-200 text-green-700",
+        },
+        {
+            id: 2,
+            emoji: "💭",
+            title: "تذكرتك",
+            message: "مرحباً! فقط أردت أن أذكرك وأطمئن عليك 💙",
+            color: "bg-blue-50 border-blue-200 text-blue-700",
+        },
+        {
+            id: 3,
+            emoji: "🤲",
+            title: "دعوة للدعاء",
+            message: "تذكر أن تدعو لي في صلاتك، وأنا سأدعو لك أيضاً 🤲✨",
+            color: "bg-purple-50 border-purple-200 text-purple-700",
+        },
+        {
+            id: 4,
+            emoji: "☕",
+            title: "دعوة لقاء",
+            message: "ما رأيك نتقابل قريباً لشرب القهوة والتحدث؟ ☕😊",
+            color: "bg-amber-50 border-amber-200 text-amber-700",
+        },
+        {
+            id: 5,
+            emoji: "❤️",
+            title: "محبة وتقدير",
+            message: "أقدر وجودك في حياتي، شكراً لك على كل شيء ❤️",
+            color: "bg-pink-50 border-pink-200 text-pink-700",
+        },
+        {
+            id: 6,
+            emoji: "🌅",
+            title: "صباح الخير",
+            message: "صباح الخير! أتمنى لك يوماً مليئاً بالسعادة والبركة 🌅✨",
+            color: "bg-orange-50 border-orange-200 text-orange-700",
+        },
+    ];
+
+    // وظيفة لاختيار نبضة افتراضية
+    const handleSelectDefaultPulse = async (defaultPulse) => {
+        const shouldSendDirectly = confirm(
+            `هل تريد إرسال "${defaultPulse.title}" مباشرة؟\n\nالرسالة: ${defaultPulse.message}`
+        );
+
+        if (shouldSendDirectly) {
+            await sendPulseWithMessage(defaultPulse.message);
+        } else {
+            setMessage(defaultPulse.message);
+            setShowDefaultPulses(false);
         }
+    };
 
+    const sendPulseWithMessage = async (pulseMessage) => {
         try {
             setLoading(true);
 
@@ -598,7 +655,7 @@ const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
                 "/pulses/send",
                 {
                     type: "direct",
-                    message: message.trim(),
+                    message: pulseMessage.trim(),
                     friend_id: friend.id,
                 },
                 {
@@ -611,7 +668,6 @@ const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
 
             onClose();
 
-            // إشعار المكون الأب بالإرسال الناجح
             if (onPulseSent) {
                 onPulseSent();
             }
@@ -621,6 +677,15 @@ const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSendPulse = async () => {
+        if (!message.trim()) {
+            alert("الرجاء كتابة رسالة النبضة");
+            return;
+        }
+
+        await sendPulseWithMessage(message);
     };
 
     return (
@@ -657,6 +722,66 @@ const SendPulseModal = ({ friend, onClose, onPulseSent }) => {
                             </p>
                         </div>
                     </div>
+
+                    {/* النبضات الافتراضية */}
+                    {showDefaultPulses && (
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    نبضات سريعة ⚡
+                                </label>
+                                <button
+                                    onClick={() => setShowDefaultPulses(false)}
+                                    className="text-xs text-gray-500 hover:text-gray-700"
+                                >
+                                    إخفاء
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                {defaultPulses.map((pulse) => (
+                                    <button
+                                        key={pulse.id}
+                                        onClick={() =>
+                                            handleSelectDefaultPulse(pulse)
+                                        }
+                                        disabled={loading}
+                                        className={`p-3 rounded-lg border text-right hover:shadow-md transition-all ${pulse.color} hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-lg">
+                                                {pulse.emoji}
+                                            </span>
+                                            <div>
+                                                <div className="font-medium text-xs mb-1">
+                                                    {pulse.title}
+                                                </div>
+                                                <div className="text-xs opacity-75 truncate">
+                                                    {pulse.message.substring(
+                                                        0,
+                                                        30
+                                                    )}
+                                                    ...
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* إظهار النبضات الافتراضية مرة أخرى */}
+                    {!showDefaultPulses && (
+                        <div className="flex justify-center">
+                            <button
+                                onClick={() => setShowDefaultPulses(true)}
+                                className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"
+                            >
+                                <span>⚡</span>
+                                إظهار النبضات السريعة
+                            </button>
+                        </div>
+                    )}
 
                     {/* Message Input */}
                     <div>
