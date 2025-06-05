@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Head, Link } from "@inertiajs/react";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import MainLayout from "@/Layouts/MainLayout";
 import {
     FiArrowLeft,
     FiUsers,
@@ -72,7 +72,7 @@ const InvitationsPage = ({ sentInvitations, stats }) => {
     };
 
     return (
-        <AuthenticatedLayout>
+        <MainLayout>
             <Head title="الدعوات المرسلة - نبض" />
 
             <div className="min-h-screen bg-gray-50">
@@ -367,7 +367,7 @@ const InvitationsPage = ({ sentInvitations, stats }) => {
                     </div>
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </MainLayout>
     );
 };
 
