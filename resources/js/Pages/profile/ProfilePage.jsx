@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { router } from "@inertiajs/react";
-import { FiEdit2, FiLogOut } from "react-icons/fi";
+import { FiEdit2, FiLogOut, FiCamera } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { Head, usePage } from "@inertiajs/react";
 import MainLayout from "../../Layouts/MainLayout";
 import PulseStats from "../../Components/PulseStats";
+import EditProfileModal from "../../Components/EditProfileModal";
 
 const ProfilePage = ({ user }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -32,8 +33,22 @@ const ProfilePage = ({ user }) => {
                                     className="relative w-32 h-32 mb-4"
                                     whileHover={{ scale: 1.05 }}
                                 >
-                                    <div className="w-32 h-32 rounded-full bg-gradient-to-r from-primary to-pink-500 flex items-center justify-center text-white text-5xl font-bold">
-                                        {user?.name?.charAt(0)}
+                                    <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-r from-primary to-pink-500 flex items-center justify-center text-white text-5xl font-bold relative">
+                                        {user?.avatar_url ? (
+                                            <img
+                                                src={user.avatar_url}
+                                                alt={user.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            user?.name?.charAt(0)
+                                        )}
+                                        <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                            <FiCamera
+                                                className="text-white opacity-0 hover:opacity-100 transition-opacity duration-200"
+                                                size={24}
+                                            />
+                                        </div>
                                     </div>
                                     <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
                                     <motion.div
@@ -59,10 +74,29 @@ const ProfilePage = ({ user }) => {
                                     {user?.email}
                                 </p>
 
+                                {/* Additional Profile Info */}
+                                <div className="w-full space-y-2 mb-4">
+                                    {user?.phone && (
+                                        <div className="text-sm text-gray-600 text-center">
+                                            📞 {user.phone}
+                                        </div>
+                                    )}
+                                    {user?.city && (
+                                        <div className="text-sm text-gray-600 text-center">
+                                            📍 {user.city}
+                                        </div>
+                                    )}
+                                    {user?.bio && (
+                                        <div className="text-sm text-gray-700 text-center bg-gray-50 p-3 rounded-lg">
+                                            {user.bio}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="flex flex-col gap-2 w-full">
                                     <button
                                         onClick={() => setIsEditing(true)}
-                                        className="flex items-center justify-center gap-2 text-primary hover:text-primary-dark bg-primary/10 p-2 rounded-lg"
+                                        className="flex items-center justify-center gap-2 text-primary hover:text-primary-dark bg-primary/10 p-2 rounded-lg transition-colors"
                                     >
                                         <FiEdit2 />
                                         <span>تعديل الملف</span>
@@ -71,7 +105,7 @@ const ProfilePage = ({ user }) => {
                                         onClick={() =>
                                             router.post(route("logout"))
                                         }
-                                        className="flex items-center justify-center gap-2 text-red-500 hover:text-red-600 bg-red-50 p-2 rounded-lg"
+                                        className="flex items-center justify-center gap-2 text-red-500 hover:text-red-600 bg-red-50 p-2 rounded-lg transition-colors"
                                     >
                                         <FiLogOut />
                                         <span>تسجيل الخروج</span>
@@ -90,6 +124,13 @@ const ProfilePage = ({ user }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Edit Profile Modal */}
+            <EditProfileModal
+                user={user}
+                isOpen={isEditing}
+                onClose={() => setIsEditing(false)}
+            />
         </>
     );
 };

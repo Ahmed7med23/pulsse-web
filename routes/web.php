@@ -17,7 +17,10 @@ Route::middleware(['auth', 'verified-user'])->group(function () {
 
     Route::get('/', [PulsesController::class, 'index'])->name('home');
 
-    Route::get('/profile', [HomeController::class, 'profile'])->name('profile');
+    Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'show'])->name('profile');
+    Route::post('/profile/update', [App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/upload-avatar', [App\Http\Controllers\ProfileController::class, 'uploadAvatar'])->name('profile.upload-avatar');
+    Route::delete('/profile/delete-avatar', [App\Http\Controllers\ProfileController::class, 'deleteAvatar'])->name('profile.delete-avatar');
 
 
     Route::get('/circles', [CirclesController::class, 'index'])->name('circles');
@@ -37,6 +40,7 @@ Route::middleware(['auth', 'verified-user'])->group(function () {
     Route::post('/friends/reject-request', [FriendsController::class, 'rejectRequest']);
     Route::post('/friends/cancel-request', [FriendsController::class, 'cancelRequest']);
     Route::post('/friends/send-invitation', [FriendsController::class, 'sendInvitation']);
+    Route::get('/friends/invitations', [FriendsController::class, 'invitations'])->name('friends.invitations');
 
 
 
@@ -58,6 +62,10 @@ Route::middleware(['auth', 'verified-user'])->group(function () {
     Route::post('/pulse-reactions/react', [PulseReactionController::class, 'react'])->name('pulse-reactions.react');
     Route::get('/pulse-reactions/get', [PulseReactionController::class, 'getReactions'])->name('pulse-reactions.get');
     Route::get('/pulse-reactions/users', [PulseReactionController::class, 'getReactionUsers'])->name('pulse-reactions.users');
+
+    // Notifications routes
+    Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/{notification}/open', [App\Http\Controllers\NotificationController::class, 'open'])->name('notifications.open');
 });
 
 // Auth routes for guests only (authenticated users will be redirected to home)

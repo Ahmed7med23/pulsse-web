@@ -47,6 +47,14 @@ Route::middleware('auth:web')->group(function () {
     Route::get('/push-notifications/quick-diagnose', [PushNotificationController::class, 'quickDiagnose']);
     Route::post('/push-notifications/generate-vapid', [PushNotificationController::class, 'generateVapidKeys']);
     Route::post('/push-notifications/test-simple', [PushNotificationController::class, 'testSimpleNotification']);
+
+    // Notifications API routes
+    Route::get('/notifications/unread', [App\Http\Controllers\NotificationController::class, 'getUnread']);
+    Route::post('/notifications/{notification}/mark-read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/mark-all-read', [App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{notification}', [App\Http\Controllers\NotificationController::class, 'destroy']);
+    Route::post('/notifications/clear-read', [App\Http\Controllers\NotificationController::class, 'clearRead']);
+    Route::get('/notifications/stats', [App\Http\Controllers\NotificationController::class, 'getStats']);
 });
 
 // Public routes (لا تحتاج authentication)

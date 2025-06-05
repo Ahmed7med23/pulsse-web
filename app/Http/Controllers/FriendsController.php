@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\FriendRequest;
 use App\Models\FriendshipStats;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -314,9 +315,9 @@ class FriendsController extends Controller
                 'previously_rejected' => 'لا يمكن إرسال طلب صداقة لهذا المستخدم في الوقت الحالي'
             ];
 
-                return response()->json([
+            return response()->json([
                 'message' => $messages[$existingRelationship] ?? 'يوجد علاقة موجودة بالفعل'
-                ], 422);
+            ], 422);
         }
 
         // Create new friend request
@@ -327,7 +328,8 @@ class FriendsController extends Controller
             'status' => 'pending',
         ]);
 
-        // TODO: إرسال إشعار للمستخدم المستهدف
+        // إرسال إشعار للمستخدم المستهدف
+        NotificationService::sendFriendRequestNotification($receiverId, $senderId, $friendRequest->id);
 
         return response()->json([
             'message' => 'تم إرسال طلب الصداقة بنجاح',
@@ -369,6 +371,9 @@ class FriendsController extends Controller
 
             // Create bidirectional friendship
             $this->createBidirectionalFriendship(Auth::id(), $friendRequest->sender_id);
+
+            // إرسال إشعار لمرسل الطلب بأنه تم قبوله
+            NotificationService::sendFriendAcceptedNotification($friendRequest->sender_id, Auth::id());
 
             DB::commit();
 
@@ -459,26 +464,71 @@ class FriendsController extends Controller
         // Clean phone number - remove spaces and any special characters
         $cleanPhone = preg_replace('/[\s\-\(\)\+]/', '', $request->phone);
 
-        $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل " . Auth::user()->name . "\n\nيمكنك تحميل التطبيق والانضمام إلينا:\nhttps://pulsse.online\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
+        // Normalize Saudi phone numbers
+        if (strlen($cleanPhone) === 9 && substr($cleanPhone, 0, 1) === '5') {
+            $cleanPhone = '966' . $cleanPhone;
+        } elseif (strlen($cleanPhone) === 10 && substr($cleanPhone, 0, 2) === '05') {
+            $cleanPhone = '966' . substr($cleanPhone, 1);
+        }
+
+        // Check if invitation already exists
+        $existingInvitation = \App\Models\Invitation::where('inviter_id', Auth::id())
+            ->where('invited_phone', $cleanPhone)
+            ->where('status', 'sent')
+            ->first();
+
+        if ($existingInvitation) {
+            return redirect()->back()->with('error', 'تم إرسال دعوة لهذا الرقم مسبقاً في ' . $existingInvitation->sent_at->format('Y-m-d'));
+        }
+
+        // Create invitation record
+        $invitation = \App\Models\Invitation::create([
+            'inviter_id' => Auth::id(),
+            'invited_phone' => $cleanPhone,
+            'status' => 'sent',
+            'invitation_code' => 'INV-' . strtoupper(substr(md5(uniqid()), 0, 8)),
+            'sent_at' => now(),
+        ]);
+
+        $inviterName = Auth::user()->name;
+        $registrationLink = "https://pulsse.online/register?invitation=" . $invitation->invitation_code;
+
+        $message = "مرحباً! 🎉\n\nتم دعوتك للانضمام إلى منصة نبض من قبل {$inviterName}\n\nسجل الآن واستمتع بتجربة التواصل المميزة:\n{$registrationLink}\n\nكود الدعوة: {$invitation->invitation_code}\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
 
         try {
             $response = Http::get('https://whatsapp.fatora.sd/send-message', [
                 'api_key' => "aijQZatAsXOxodJZZ9Y2xF4ObpDHij",
                 'sender' => "249915903708",
-                'number' => $cleanPhone, // Use cleaned phone number
+                'number' => $cleanPhone,
                 'message' => $message,
             ]);
 
             if ($response->successful()) {
                 Log::info('Invitation message sent successfully', [
+                    'invitation_id' => $invitation->id,
+                    'original_phone' => $request->phone,
+                    'cleaned_phone' => $cleanPhone,
+                    'invitation_code' => $invitation->invitation_code,
+                    'response' => $response->json()
+                ]);
+
+                return redirect()->back()->with('success', 'تم إرسال دعوة للمستخدم بنجاح عبر WhatsApp! 📱 يمكنك متابعة حالة الدعوة من صفحة الدعوات.');
+            } else {
+                // Delete invitation if WhatsApp sending failed
+                $invitation->delete();
+
+                Log::error('WhatsApp API returned unsuccessful response', [
                     'original_phone' => $request->phone,
                     'cleaned_phone' => $cleanPhone,
                     'response' => $response->json()
                 ]);
 
-                return redirect()->back()->with('success', 'تم إرسال دعوة للمستخدم بنجاح عبر WhatsApp! 📱');
+                return redirect()->back()->with('error', 'فشل إرسال الدعوة عبر WhatsApp. يرجى المحاولة مرة أخرى.');
             }
         } catch (\Exception $e) {
+            // Delete invitation if sending failed
+            $invitation->delete();
+
             Log::error('Failed to send invitation message', [
                 'original_phone' => $request->phone,
                 'cleaned_phone' => $cleanPhone,
@@ -489,6 +539,44 @@ class FriendsController extends Controller
         }
 
         return redirect()->back()->with('error', 'فشل إرسال الدعوة. يرجى المحاولة مرة أخرى.');
+    }
+
+    /**
+     * Display sent invitations page
+     */
+    public function invitations()
+    {
+        $userId = Auth::id();
+
+        $sentInvitations = \App\Models\Invitation::where('inviter_id', $userId)
+            ->orderBy('sent_at', 'desc')
+            ->get()
+            ->map(function ($invitation) {
+                return [
+                    'id' => $invitation->id,
+                    'phone' => $invitation->invited_phone,
+                    'status' => $invitation->status,
+                    'invitation_code' => $invitation->invitation_code,
+                    'sent_at' => $invitation->sent_at->diffForHumans(),
+                    'registered_at' => $invitation->registered_at ? $invitation->registered_at->diffForHumans() : null,
+                    'invited_user' => $invitation->invitedUser ? [
+                        'id' => $invitation->invitedUser->id,
+                        'name' => $invitation->invitedUser->name,
+                        'avatar' => $invitation->invitedUser->avatar_url ?: $this->generateAvatar($invitation->invitedUser->name),
+                    ] : null,
+                ];
+            });
+
+        $stats = [
+            'total_sent' => $sentInvitations->count(),
+            'registered' => $sentInvitations->where('status', 'registered')->count(),
+            'pending' => $sentInvitations->where('status', 'sent')->count(),
+        ];
+
+        return Inertia::render('friends/InvitationsPage', [
+            'sentInvitations' => $sentInvitations,
+            'stats' => $stats,
+        ]);
     }
 
     // Helper Methods

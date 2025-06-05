@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Pulse;
 use App\Models\PulseReaction;
+use App\Services\NotificationService;
 
 class PulseReactionController extends Controller
 {
@@ -46,6 +47,12 @@ class PulseReactionController extends Controller
                 'reaction_type' => $reactionType
             ]);
             $action = 'added';
+
+            // إرسال إشعار للمرسل إذا لم يكن هو نفسه من تفاعل
+            $pulse = Pulse::find($pulseId);
+            if ($pulse && $pulse->sender_id !== $userId) {
+                NotificationService::sendPulseLikedNotification($pulse, $userId);
+            }
         }
 
         // Get updated reaction counts

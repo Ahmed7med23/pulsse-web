@@ -17,7 +17,7 @@ import {
     FiArrowRight,
     FiEdit3,
 } from "react-icons/fi";
-import { Head, router } from "@inertiajs/react";
+import { Head, router, Link } from "@inertiajs/react";
 import FriendSearchModal from "../../Components/Friends/FriendSearchModal";
 import AddToCircleModal from "../../Components/Friends/AddToCircleModal";
 import axios from "axios";
@@ -403,6 +403,13 @@ const FriendsPage = ({
                         >
                             <FiSearch size={20} />
                         </button>
+                        <Link
+                            href="/friends/invitations"
+                            className="p-2 rounded-full text-gray-700 hover:bg-gray-200 hover:text-primary transition-colors"
+                            title="الدعوات المرسلة"
+                        >
+                            <FiSend size={20} />
+                        </Link>
                         <button
                             onClick={() =>
                                 alert("ميزة تعديل الإعدادات قيد التطوير!")

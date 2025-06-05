@@ -13,11 +13,25 @@ function RegisterPage({ status, canResetPassword, countries, flash }) {
             phone: "",
             password: "",
             remember: true,
+            invitation_code: "",
         });
 
     const [countryModal, setCountryModal] = useState(false);
     const [selectedCountry, setSelectedCountry] = useState(countries[0]); // Default: السعودية
     const [message, setMessage] = useState(null);
+
+    // قراءة كود الدعوة من URL
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const invitationCode = urlParams.get("invitation");
+        if (invitationCode) {
+            setData("invitation_code", invitationCode);
+            setMessage({
+                type: "info",
+                text: `تم تطبيق كود الدعوة: ${invitationCode} 🎉`,
+            });
+        }
+    }, []);
 
     // معالجة رسائل flash
     useEffect(() => {
@@ -94,6 +108,7 @@ function RegisterPage({ status, canResetPassword, countries, flash }) {
             phone: data.phone.trim(),
             password: data.password,
             country: selectedCountry,
+            invitation_code: data.invitation_code || null,
         };
 
         console.log("Final data being sent:", finalData);

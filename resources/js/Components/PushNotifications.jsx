@@ -4,6 +4,7 @@ import { usePage } from "@inertiajs/react";
 import axios from "axios";
 
 const PushNotifications = () => {
+    return null;
     const [isSupported, setIsSupported] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoading, setIsLoading] = useState(false);

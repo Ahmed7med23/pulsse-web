@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\FriendshipStats;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Http;
@@ -115,6 +117,7 @@ class AuthController extends Controller
             'name' => $request->name,
             'phone' => $request->phone,
             'country' => $request->country,
+            'invitation_code' => $request->invitation_code,
             'ip' => $request->ip()
         ]);
 
@@ -126,6 +129,7 @@ class AuthController extends Controller
             'country' => 'required|array',
             'country.code' => 'required|string',
             'country.name' => 'required|string',
+            'invitation_code' => 'nullable|string',
         ]);
 
         $phone = ltrim($request->country['code'], '+') . $request->phone;
@@ -163,6 +167,29 @@ class AuthController extends Controller
             'otp' => $otp,
             'country' => $request->country['name'],
         ]);
+
+        // التعامل مع كود الدعوة إذا كان موجوداً
+        $invitation = null;
+        if ($request->invitation_code) {
+            $invitation = \App\Models\Invitation::where('invitation_code', $request->invitation_code)
+                ->where('status', 'sent')
+                ->first();
+
+            if ($invitation) {
+                // تحديث الدعوة لتشير إلى المستخدم الجديد
+                $invitation->update([
+                    'invited_user_id' => $user->id,
+                    'status' => 'registered',
+                    'registered_at' => now(),
+                ]);
+
+                Log::info('User registered through invitation', [
+                    'user_id' => $user->id,
+                    'invitation_id' => $invitation->id,
+                    'inviter_id' => $invitation->inviter_id
+                ]);
+            }
+        }
 
         $message = "مرحباً بك في منصة نبض! 🎉\n\nرمز التحقق الخاص بك هو: " . $otp . "\n\nيمكنك إدخال الرمز أو الضغط على الرابط التالي للتعريف بمنصتنا:\nhttps://pulsse.online/verify/$phone/$otp\n\nنبض - منصة التواصل الاجتماعي المميزة 🌟";
 
@@ -248,6 +275,45 @@ class AuthController extends Controller
             'otp' => null,
             'email_verified_at' => now(), // أو phone_verified_at إذا كان لديك هذا الحقل
         ]);
+
+        // التحقق من وجود دعوة مرتبطة بهذا المستخدم (بناءً على رقم الهاتف)
+        $invitation = \App\Models\Invitation::where('invited_phone', $user->phone)
+            ->where('status', 'sent')
+            ->first();
+
+        // إذا وُجدت دعوة، قم بتحديثها لتشير للمستخدم الجديد
+        if ($invitation) {
+            $invitation->update([
+                'invited_user_id' => $user->id,
+                'status' => 'registered',
+                'registered_at' => now(),
+            ]);
+        }
+
+        if ($invitation && $invitation->inviter_id) {
+            try {
+                // إنشاء صداقة تلقائية بين المدعو والمدعي
+                $this->createBidirectionalFriendship($invitation->inviter_id, $user->id);
+
+                // إرسال إشعار للمدعي بأن صديقه انضم
+                \App\Services\NotificationService::sendFriendJoinedNotification(
+                    $invitation->inviter_id,
+                    $user->id
+                );
+
+                Log::info('Automatic friendship created through invitation', [
+                    'inviter_id' => $invitation->inviter_id,
+                    'invited_user_id' => $user->id,
+                    'invitation_id' => $invitation->id
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create automatic friendship', [
+                    'inviter_id' => $invitation->inviter_id,
+                    'invited_user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
 
         // تسجيل الدخول التلقائي
         Auth::login($user, true);
@@ -349,6 +415,46 @@ class AuthController extends Controller
             'email_verified_at' => now(),
         ]);
 
+        // التحقق من وجود دعوة مرتبطة بهذا المستخدم (بناءً على رقم الهاتف)
+        $invitation = \App\Models\Invitation::where('invited_phone', $user->phone)
+            ->where('status', 'sent')
+            ->first();
+
+        // إذا وُجدت دعوة، قم بتحديثها لتشير للمستخدم الجديد
+        if ($invitation) {
+            $invitation->update([
+                'invited_user_id' => $user->id,
+                'status' => 'registered',
+                'registered_at' => now(),
+            ]);
+
+            // إنشاء صداقة تلقائية وإرسال إشعار
+            if ($invitation->inviter_id) {
+                try {
+                    // إنشاء صداقة تلقائية بين المدعو والمدعي
+                    $this->createBidirectionalFriendship($invitation->inviter_id, $user->id);
+
+                    // إرسال إشعار للمدعي بأن صديقه انضم
+                    \App\Services\NotificationService::sendFriendJoinedNotification(
+                        $invitation->inviter_id,
+                        $user->id
+                    );
+
+                    Log::info('Automatic friendship created through invitation (legacy verify)', [
+                        'inviter_id' => $invitation->inviter_id,
+                        'invited_user_id' => $user->id,
+                        'invitation_id' => $invitation->id
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to create automatic friendship (legacy verify)', [
+                        'inviter_id' => $invitation->inviter_id,
+                        'invited_user_id' => $user->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
         // تسجيل الدخول التلقائي
         Auth::login($user, true);
 
@@ -357,6 +463,50 @@ class AuthController extends Controller
             'message' => [
                 'en' => 'Account verified successfully! Welcome to Pulse!',
                 'ar' => 'تم التحقق من الحساب بنجاح! مرحباً بك في نبض!'
+            ]
+        ]);
+    }
+
+    /**
+     * إنشاء صداقة في الاتجاهين
+     */
+    private function createBidirectionalFriendship($userId1, $userId2)
+    {
+        $friendshipDate = now();
+
+        // Create friendship records in both directions
+        DB::table('user_friendships')->insert([
+            [
+                'user_id' => $userId1,
+                'friend_id' => $userId2,
+                'friendship_started_at' => $friendshipDate,
+                'is_blocked' => false,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ],
+            [
+                'user_id' => $userId2,
+                'friend_id' => $userId1,
+                'friendship_started_at' => $friendshipDate,
+                'is_blocked' => false,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ]
+        ]);
+
+        // Create friendship stats for both users
+        FriendshipStats::insert([
+            [
+                'user_id' => $userId1,
+                'friend_id' => $userId2,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
+            ],
+            [
+                'user_id' => $userId2,
+                'friend_id' => $userId1,
+                'created_at' => $friendshipDate,
+                'updated_at' => $friendshipDate,
             ]
         ]);
     }

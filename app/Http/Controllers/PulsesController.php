@@ -10,6 +10,7 @@ use App\Models\Pulse;
 use App\Models\PulseRecipient;
 use App\Models\FriendshipStats;
 use App\Models\PulseReaction;
+use App\Services\NotificationService;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 
@@ -123,6 +124,9 @@ class PulsesController extends Controller
             'recipient_id' => $friend->id,
         ]);
 
+        // إرسال إشعار للمستقبل
+        NotificationService::sendPulseReceivedNotification($pulse, $friend->id);
+
         // Update friendship statistics
         $stats = FriendshipStats::where('user_id', $userId)
             ->where('friend_id', $friend->id)
@@ -207,6 +211,11 @@ class PulsesController extends Controller
 
             PulseRecipient::insert($recipients);
 
+            // إرسال إشعارات لجميع أعضاء الدائرة
+            foreach ($circleMembers as $member) {
+                NotificationService::sendPulseReceivedNotification($pulse, $member->id);
+            }
+
             // Update friendship statistics for all members
             foreach ($circleMembers as $member) {
                 $stats = FriendshipStats::where('user_id', $userId)
@@ -266,7 +275,7 @@ class PulsesController extends Controller
                     'id' => $pulse->id,
                     'user' => [
                         'name' => $currentUser->name,
-                        'avatar' => $currentUser->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($currentUser->name),
+                        'avatar' => $currentUser->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($currentUser->name),
                     ],
                     'message' => $pulse->message,
                     'timeAgo' => $pulse->created_at->diffForHumans(),
@@ -306,7 +315,7 @@ class PulsesController extends Controller
                     'id' => $pulse->id,
                     'user' => [
                         'name' => $pulse->sender->name,
-                        'avatar' => $pulse->sender->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($pulse->sender->name),
+                        'avatar' => $pulse->sender->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($pulse->sender->name),
                     ],
                     'message' => $pulse->message,
                     'timeAgo' => $pulse->created_at->diffForHumans(),
@@ -390,7 +399,7 @@ class PulsesController extends Controller
                     'pulse_type' => $pulse->type, // 'direct' or 'circle'
                     'user' => [
                         'name' => $pulse->sender->name,
-                        'avatar' => $pulse->sender->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($pulse->sender->name),
+                        'avatar' => $pulse->sender->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($pulse->sender->name),
                     ],
                     'message' => $pulse->message,
                     'timeAgo' => $pulse->created_at->diffForHumans(),
@@ -427,7 +436,7 @@ class PulsesController extends Controller
                     'pulse_type' => $pulse->type, // 'direct' or 'circle'
                     'user' => [
                         'name' => $currentUser->name,
-                        'avatar' => $currentUser->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($currentUser->name),
+                        'avatar' => $currentUser->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($currentUser->name),
                     ],
                     'message' => $pulse->message,
                     'timeAgo' => $pulse->created_at->diffForHumans(),
@@ -501,6 +510,11 @@ class PulsesController extends Controller
                 // Different reaction - update it
                 $existingReaction->update(['reaction_type' => $reactionType]);
                 $action = 'updated';
+
+                // إرسال إشعار للمرسل إذا لم يكن هو نفسه من تفاعل
+                if ($pulse->sender_id !== $userId) {
+                    NotificationService::sendPulseLikedNotification($pulse, $userId);
+                }
             }
         } else {
             // No existing reaction - create new one
@@ -510,6 +524,11 @@ class PulsesController extends Controller
                 'reaction_type' => $reactionType,
             ]);
             $action = 'added';
+
+            // إرسال إشعار للمرسل إذا لم يكن هو نفسه من تفاعل
+            if ($pulse->sender_id !== $userId) {
+                NotificationService::sendPulseLikedNotification($pulse, $userId);
+            }
         }
 
         // Return updated reactions summary
