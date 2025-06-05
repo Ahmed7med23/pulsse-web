@@ -96,15 +96,19 @@ const PushNotifications = () => {
     const registerServiceWorker = async () => {
         if ("serviceWorker" in navigator) {
             try {
-                // إلغاء تسجيل Service Workers القديمة أولاً
-                const registrations =
-                    await navigator.serviceWorker.getRegistrations();
-                for (let registration of registrations) {
-                    await registration.unregister();
-                    console.log("🗑️ Unregistered old service worker");
+                // فحص Service Worker الموجود أولاً
+                const existingRegistration =
+                    await navigator.serviceWorker.getRegistration("/");
+
+                if (existingRegistration && existingRegistration.active) {
+                    console.log(
+                        "✅ Using existing service worker:",
+                        existingRegistration
+                    );
+                    return existingRegistration;
                 }
 
-                // تسجيل Service Worker جديد
+                // تسجيل Service Worker جديد فقط إذا لم يكن موجود
                 const registration = await navigator.serviceWorker.register(
                     "/sw.js",
                     {
@@ -113,28 +117,52 @@ const PushNotifications = () => {
                 );
 
                 // انتظار حتى يصبح Service Worker نشطاً
-                await new Promise((resolve, reject) => {
-                    if (registration.installing) {
+                if (registration.installing) {
+                    await new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            reject(
+                                new Error("Service Worker installation timeout")
+                            );
+                        }, 10000); // 10 seconds timeout
+
                         registration.installing.addEventListener(
                             "statechange",
                             function () {
                                 if (
-                                    registration.installing &&
-                                    registration.installing.state ===
-                                        "installed"
+                                    registration.installing?.state ===
+                                    "installed"
                                 ) {
+                                    clearTimeout(timeout);
                                     resolve(registration);
+                                } else if (
+                                    registration.installing?.state ===
+                                    "redundant"
+                                ) {
+                                    clearTimeout(timeout);
+                                    reject(
+                                        new Error(
+                                            "Service Worker became redundant"
+                                        )
+                                    );
                                 }
                             }
                         );
-                    } else if (registration.waiting) {
-                        resolve(registration);
-                    } else if (registration.active) {
-                        resolve(registration);
-                    } else {
-                        reject(new Error("Service Worker registration failed"));
-                    }
-                });
+                    });
+                } else if (registration.waiting) {
+                    // Service Worker is waiting, activate it
+                    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+                } else if (!registration.active) {
+                    await new Promise((resolve) => {
+                        const checkActive = () => {
+                            if (registration.active) {
+                                resolve(registration);
+                            } else {
+                                setTimeout(checkActive, 100);
+                            }
+                        };
+                        checkActive();
+                    });
+                }
 
                 console.log("✅ Service Worker registered:", registration);
                 return registration;
@@ -215,7 +243,23 @@ const PushNotifications = () => {
             }
         } catch (error) {
             console.error("Subscription error:", error);
-            setError(error.message || "فشل في تفعيل الإشعارات");
+
+            // رسائل خطأ أكثر وضوحاً
+            let errorMessage = "فشل في تفعيل الإشعارات";
+
+            if (error.message?.includes("denied")) {
+                errorMessage =
+                    "تم رفض صلاحية الإشعارات. قم بالسماح من إعدادات المتصفح.";
+            } else if (error.message?.includes("Service Worker")) {
+                errorMessage =
+                    "مشكلة في تسجيل Service Worker. جرب إعادة تحميل الصفحة.";
+            } else if (error.message?.includes("VAPID")) {
+                errorMessage = "مشكلة في إعدادات الخادم. جرب لاحقاً.";
+            } else if (error.message?.includes("timeout")) {
+                errorMessage = "انتهت مهلة الاتصال. جرب مرة أخرى.";
+            }
+
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
