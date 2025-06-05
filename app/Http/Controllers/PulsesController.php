@@ -574,6 +574,53 @@ class PulsesController extends Controller
     }
 
     /**
+     * Get all reactions for a pulse (mixed types)
+     */
+    public function getAllReactions($pulseId)
+    {
+        // Check if pulse exists
+        $pulse = Pulse::find($pulseId);
+        if (!$pulse) {
+            return response()->json([
+                'message' => 'النبضة غير موجودة'
+            ], 404);
+        }
+
+        // Check if current user has access to see reactions
+        $userId = Auth::id();
+        $canView = $pulse->sender_id === $userId ||
+            PulseRecipient::where('pulse_id', $pulseId)
+            ->where('recipient_id', $userId)
+            ->exists();
+
+        if (!$canView) {
+            return response()->json([
+                'message' => 'لا يمكنك رؤية تفاعلات هذه النبضة'
+            ], 403);
+        }
+
+        // Get all users who reacted with any reaction type
+        $allReactions = PulseReaction::where('pulse_id', $pulseId)
+            ->with('user:id,name,avatar_url')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($reaction) {
+                return [
+                    'id' => $reaction->id,
+                    'reaction_type' => $reaction->reaction_type,
+                    'user' => [
+                        'id' => $reaction->user->id,
+                        'name' => $reaction->user->name,
+                        'avatar' => $reaction->user->avatar_url ?: 'https://ui-avatars.com/api/?name=' . urlencode($reaction->user->name),
+                    ],
+                    'reacted_at' => $reaction->created_at->diffForHumans(),
+                ];
+            });
+
+        return response()->json($allReactions);
+    }
+
+    /**
      * Mark a pulse as seen by the current user
      */
     public function markAsSeen($pulseId)

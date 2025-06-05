@@ -18,6 +18,7 @@ import axios from "axios";
  */
 const PulseCard = ({ pulse, onReactionUpdate }) => {
     const [showReactionsModal, setShowReactionsModal] = useState(false);
+    const [showAllReactionsModal, setShowAllReactionsModal] = useState(false);
     const [selectedReactionType, setSelectedReactionType] = useState(null);
     const [reactionLoading, setReactionLoading] = useState(false);
     const [localReactions, setLocalReactions] = useState(pulse.reactions);
@@ -106,15 +107,8 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
     };
 
     const handleTotalReactionsClick = () => {
-        // Show modal for the most popular reaction type
-        const mostPopularReaction = localReactions
-            .filter((r) => r.count > 0)
-            .sort((a, b) => b.count - a.count)[0];
-
-        if (mostPopularReaction) {
-            setSelectedReactionType(mostPopularReaction.type);
-            setShowReactionsModal(true);
-        }
+        // Show modal for all reactions
+        setShowAllReactionsModal(true);
     };
 
     const handleMarkAsSeen = async (pulseId) => {
@@ -418,8 +412,8 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                         {localReactions.some((r) => r.count > 0) && (
                             <button
                                 onClick={handleTotalReactionsClick}
-                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
-                                title="انقر لرؤية جميع التفاعلات"
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-full"
+                                title="انقر لرؤية جميع التفاعلات المختلطة"
                             >
                                 <FiHeart size={12} className="text-pink-400" />
                                 <span className="font-medium">
@@ -429,6 +423,11 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                                     )}{" "}
                                     تفاعل
                                 </span>
+                                {/* indicator للتفاعلات المختلطة */}
+                                {localReactions.filter((r) => r.count > 0)
+                                    .length > 1 && (
+                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                                )}
                             </button>
                         )}
                     </div>
@@ -487,6 +486,14 @@ const PulseCard = ({ pulse, onReactionUpdate }) => {
                     pulse={pulse}
                     reactionType={selectedReactionType}
                     onClose={() => setShowReactionsModal(false)}
+                />
+            )}
+
+            {/* All Reactions Modal */}
+            {showAllReactionsModal && (
+                <AllReactionsModal
+                    pulse={pulse}
+                    onClose={() => setShowAllReactionsModal(false)}
                 />
             )}
         </>
@@ -661,6 +668,158 @@ const ReactionsModal = ({ pulse, reactionType, onClose }) => {
                         </p>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Modal to show all reactions with mixed types
+ */
+const AllReactionsModal = ({ pulse, onClose }) => {
+    const [allReactions, setAllReactions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const reactionMapping = {
+        pray: "🙏",
+        sparkles: "✨",
+        smile: "😊",
+        heart: "❤️",
+        thumbs_up: "👍",
+        sad: "😢",
+        surprised: "😮",
+        angry: "😡",
+    };
+
+    const reactionNames = {
+        pray: "دعاء",
+        sparkles: "بريق",
+        smile: "ابتسامة",
+        heart: "حب",
+        thumbs_up: "إعجاب",
+        sad: "حزن",
+        surprised: "مفاجأة",
+        angry: "غضب",
+    };
+
+    // جلب جميع التفاعلات
+    useEffect(() => {
+        const fetchAllReactions = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+
+                const response = await axios.get(
+                    `/pulses/${pulse.id}/reactions/all`,
+                    {
+                        headers: {
+                            Accept: "application/json",
+                        },
+                    }
+                );
+
+                console.log("All reactions response:", response.data);
+                setAllReactions(response.data);
+            } catch (error) {
+                console.error("Error fetching all reactions:", error);
+                setError(
+                    error.response?.data?.message || "حدث خطأ في جلب التفاعلات"
+                );
+                setAllReactions([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAllReactions();
+    }, [pulse.id]);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">😍</span>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800">
+                                جميع التفاعلات
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                {loading
+                                    ? "جاري التحميل..."
+                                    : `${allReactions.length} متفاعل`}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="overflow-y-auto max-h-96">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <FiLoader className="animate-spin text-2xl text-blue-500 mb-3" />
+                            <p className="text-gray-500">
+                                جاري تحميل التفاعلات...
+                            </p>
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <FiHeart className="text-2xl text-red-400 mb-3" />
+                            <p className="text-red-600 text-center">{error}</p>
+                        </div>
+                    ) : allReactions.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <FiHeart className="text-2xl text-gray-300 mb-3" />
+                            <p className="text-gray-500">لا توجد تفاعلات بعد</p>
+                        </div>
+                    ) : (
+                        <div className="p-4">
+                            {allReactions.map((reaction, index) => (
+                                <div
+                                    key={`${reaction.user.id}-${reaction.reaction_type}-${index}`}
+                                    className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                                >
+                                    <img
+                                        src={reaction.user.avatar}
+                                        alt={reaction.user.name}
+                                        className="w-10 h-10 rounded-full object-cover border border-gray-200"
+                                    />
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-gray-800">
+                                                {reaction.user.name}
+                                            </span>
+                                            <span className="text-lg">
+                                                {
+                                                    reactionMapping[
+                                                        reaction.reaction_type
+                                                    ]
+                                                }
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500">
+                                            تفاعل بـ{" "}
+                                            {
+                                                reactionNames[
+                                                    reaction.reaction_type
+                                                ]
+                                            }{" "}
+                                            • {reaction.reacted_at}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
