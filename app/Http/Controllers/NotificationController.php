@@ -177,26 +177,22 @@ class NotificationController extends Controller
             case 'pulse_received':
             case 'pulse_liked':
             case 'pulse_replied':
-                if ($notification->related_id) {
-                    return redirect()->route('pulse.show', $notification->related_id);
-                }
-                break;
+                // توجيه المستخدم للصفحة الرئيسية حيث يمكن رؤية النبضات
+                return redirect()->route('home')->with('pulse_highlight', $notification->related_id);
 
             case 'friend_request':
-                return redirect()->route('friends.requests');
-
             case 'friend_accepted':
-                if ($notification->from_user_id) {
-                    return redirect()->route('profile.show', $notification->from_user_id);
-                }
-                break;
+            case 'friend_joined':
+                // توجيه لصفحة الأصدقاء
+                return redirect()->route('friends');
 
             case 'circle_invite':
             case 'circle_joined':
                 if ($notification->related_id) {
                     return redirect()->route('circles.show', $notification->related_id);
                 }
-                break;
+                // إذا لم يوجد related_id، توجيه لصفحة الدوائر
+                return redirect()->route('circles');
 
             default:
                 if ($notification->action_url) {

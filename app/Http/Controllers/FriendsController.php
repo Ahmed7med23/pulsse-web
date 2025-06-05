@@ -26,8 +26,17 @@ class FriendsController extends Controller
     {
         $userId = Auth::id();
 
+        $acceptedFriends = $this->getAcceptedFriends($userId);
+
+        // إضافة logging للتحقق من البيانات
+        Log::info('FriendsController::index called', [
+            'user_id' => $userId,
+            'accepted_friends_count' => count($acceptedFriends),
+            'friends_list' => $acceptedFriends->pluck('name', 'id')->toArray()
+        ]);
+
         return Inertia::render('friends/FriendsPage', [
-            'acceptedFriends' => $this->getAcceptedFriends($userId),
+            'acceptedFriends' => $acceptedFriends,
             'receivedRequests' => $this->getReceivedRequests($userId),
             'sentRequests' => $this->getSentRequests($userId),
             'favoriteFriends' => $this->getFavoriteFriends($userId),

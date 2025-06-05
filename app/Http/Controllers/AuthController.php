@@ -168,7 +168,7 @@ class AuthController extends Controller
             'country' => $request->country['name'],
         ]);
 
-        // التعامل مع كود الدعوة إذا كان موجوداً
+        // التعامل مع كود الدعوة إذا كان موجوداً (فقط للتحقق، لا نحدث الحالة هنا)
         $invitation = null;
         if ($request->invitation_code) {
             $invitation = \App\Models\Invitation::where('invitation_code', $request->invitation_code)
@@ -176,17 +176,11 @@ class AuthController extends Controller
                 ->first();
 
             if ($invitation) {
-                // تحديث الدعوة لتشير إلى المستخدم الجديد
-                $invitation->update([
-                    'invited_user_id' => $user->id,
-                    'status' => 'registered',
-                    'registered_at' => now(),
-                ]);
-
-                Log::info('User registered through invitation', [
+                Log::info('User registered with valid invitation code', [
                     'user_id' => $user->id,
                     'invitation_id' => $invitation->id,
-                    'inviter_id' => $invitation->inviter_id
+                    'inviter_id' => $invitation->inviter_id,
+                    'note' => 'Invitation will be processed after OTP verification'
                 ]);
             }
         }
@@ -276,10 +270,21 @@ class AuthController extends Controller
             'email_verified_at' => now(), // أو phone_verified_at إذا كان لديك هذا الحقل
         ]);
 
-        // التحقق من وجود دعوة مرتبطة بهذا المستخدم (بناءً على رقم الهاتف)
+        // التحقق من وجود دعوة مرتبطة بهذا المستخدم
+        // البحث أولاً بناءً على رقم الهاتف، ثم بناءً على invitation_code إذا كان متوفراً
         $invitation = \App\Models\Invitation::where('invited_phone', $user->phone)
             ->where('status', 'sent')
             ->first();
+
+        // إذا لم توجد دعوة بناءً على رقم الهاتف، ابحث في session عن invitation_code
+        if (!$invitation) {
+            $invitationCode = session('invitation_code');
+            if ($invitationCode) {
+                $invitation = \App\Models\Invitation::where('invitation_code', $invitationCode)
+                    ->where('status', 'sent')
+                    ->first();
+            }
+        }
 
         // إذا وُجدت دعوة، قم بتحديثها لتشير للمستخدم الجديد
         if ($invitation) {
