@@ -13,12 +13,17 @@ import {
     FiTrendingUp,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
-import { Head } from "@inertiajs/react";
+import { Head, usePage } from "@inertiajs/react";
 import MainLayout from "../../Layouts/MainLayout";
+import PulseStats from "../../Components/PulseStats";
 
 const ProfilePage = ({ user }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [activeTab, setActiveTab] = useState("activity");
+
+    // الحصول على إحصائيات النبضات
+    const pageData = usePage();
+    const initialStats = pageData.props.pulseStats;
 
     const stats = [
         {
@@ -176,6 +181,11 @@ const ProfilePage = ({ user }) => {
 
                     {/* Right Column - Stats and Activity */}
                     <div className="lg:col-span-2 space-y-6">
+                        {/* Pulse Statistics */}
+                        {initialStats && (
+                            <PulseStats initialStats={initialStats} />
+                        )}
+
                         {/* Stats Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {stats.map((stat) => (

@@ -17,7 +17,6 @@ import { motion } from "framer-motion";
 import { useAuth } from "../../Contexts/AuthContext";
 import { Head, usePage, usePoll } from "@inertiajs/react";
 import PulseCard from "./PulseCard";
-import PulseStats from "../../Components/PulseStats";
 import PushNotifications from "../../Components/PushNotifications";
 import axios from "axios";
 
@@ -176,9 +175,6 @@ function Home() {
         <>
             <Head title="الرئيسية" />
             <UserCardHome />
-
-            {/* Pulse Statistics */}
-            {initialStats && <PulseStats initialStats={initialStats} />}
 
             {/* Push Notifications - للاختبار */}
             <div className="mx-2 mb-4">
