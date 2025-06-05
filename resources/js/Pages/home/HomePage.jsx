@@ -8,7 +8,6 @@ import {
     FiSend,
     FiInbox,
     FiLoader,
-    FiPlus,
     FiUser,
 } from "react-icons/fi";
 import { FiTrendingUp } from "react-icons/fi";
@@ -26,8 +25,6 @@ function Home() {
     const [loading, setLoading] = useState(true); // للتحميل الأولي فقط
     const [isRefreshing, setIsRefreshing] = useState(false); // للتحديث التلقائي
     const [error, setError] = useState(null);
-    const [showSendPulseModal, setShowSendPulseModal] = useState(false);
-    const [isPolling, setIsPolling] = useState(true);
 
     const pageData = usePage();
     const initialStats = pageData.props.pulseStats;
@@ -95,24 +92,17 @@ function Home() {
         return true; // 'all'
     });
 
-    // تحديث النبضات كل 5 ثوان باستخدام Inertia Polling
-    const { stop, start } = usePoll(
-        5000,
+    // تحديث النبضات كل 10 ثوان باستخدام Inertia Polling
+    usePoll(
+        10000,
         {
             only: ["receivedPulses", "pulseStats"], // تحديث النبضات والإحصائيات
             onSuccess: (response) => {
                 // تحديث النبضات المحلية عند نجاح الـ polling
                 if (response.props.receivedPulses) {
-                    console.log(
-                        "تم تحديث النبضات:",
-                        response.props.receivedPulses?.data?.length || 0
-                    );
                     // تحديث صامت دون إظهار مؤشر التحميل الكبير
                     fetchPulses(false); // تحديث تلقائي
                 }
-            },
-            onError: (error) => {
-                console.error("خطأ في تحديث النبضات:", error);
             },
         },
         {
@@ -120,18 +110,6 @@ function Home() {
             autoStart: true, // البدء تلقائياً
         }
     );
-
-    // تبديل حالة الـ Polling
-    const togglePolling = () => {
-        if (isPolling) {
-            stop();
-            console.log("تم إيقاف التحديث التلقائي");
-        } else {
-            start();
-            console.log("تم تشغيل التحديث التلقائي");
-        }
-        setIsPolling(!isPolling);
-    };
 
     // Loading state - للتحميل الأولي فقط
     if (loading) {
@@ -210,75 +188,12 @@ function Home() {
             </div>
 
             {/* Control bar */}
-            <div className="flex justify-between items-center p-4 bg-white border-b border-gray-100">
+            <div className="flex justify-center items-center p-4 bg-white border-b border-gray-100">
                 <h2 className="text-lg font-semibold text-gray-900">
                     {activeTab === "all" && "جميع النبضات"}
                     {activeTab === "received" && "النبضات المستقبلة"}
                     {activeTab === "sent" && "النبضات المرسلة"}
                 </h2>
-
-                <div className="flex items-center gap-3">
-                    {/* Auto-update indicator with refresh status */}
-                    <div className="flex items-center gap-2">
-                        <div
-                            className={`w-2 h-2 rounded-full ${
-                                isPolling
-                                    ? isRefreshing
-                                        ? "bg-blue-500 animate-pulse"
-                                        : "bg-green-500 animate-pulse"
-                                    : "bg-gray-400"
-                            }`}
-                        ></div>
-                        <span className="text-xs text-gray-500">
-                            {isPolling
-                                ? isRefreshing
-                                    ? "جاري التحديث..."
-                                    : "تحديث تلقائي"
-                                : "متوقف"}
-                        </span>
-                    </div>
-
-                    {/* Toggle polling button */}
-                    <button
-                        onClick={togglePolling}
-                        className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                            isPolling
-                                ? "bg-red-100 text-red-700 hover:bg-red-200"
-                                : "bg-green-100 text-green-700 hover:bg-green-200"
-                        }`}
-                    >
-                        {isPolling ? "⏸️ إيقاف" : "▶️ تشغيل"}
-                    </button>
-
-                    {/* Manual refresh button */}
-                    <button
-                        onClick={() => fetchPulses(false)}
-                        disabled={isRefreshing}
-                        className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                            isRefreshing
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                        }`}
-                    >
-                        {isRefreshing ? (
-                            <div className="flex items-center gap-1">
-                                <FiLoader className="animate-spin w-3 h-3" />
-                                <span>تحديث</span>
-                            </div>
-                        ) : (
-                            "🔄 تحديث"
-                        )}
-                    </button>
-
-                    {/* Send pulse button */}
-                    <button
-                        onClick={() => setShowSendPulseModal(true)}
-                        className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                        <FiPlus size={16} />
-                        <span>نبضة جديدة</span>
-                    </button>
-                </div>
             </div>
 
             {/* Pulses list */}
@@ -308,28 +223,12 @@ function Home() {
                             {activeTab === "received" &&
                                 "ستظهر النبضات التي يرسلها أصدقاؤك هنا"}
                             {activeTab === "sent" &&
-                                "ابدأ بإرسال نبضة إلى أصدقائك"}
-                            {activeTab === "all" &&
-                                "ابدأ بإرسال نبضة أو انتظر نبضات من الأصدقاء"}
+                                "ستظهر النبضات التي أرسلتها هنا"}
+                            {activeTab === "all" && "ستظهر جميع النبضات هنا"}
                         </p>
-                        <button
-                            onClick={() => setShowSendPulseModal(true)}
-                            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors mx-auto"
-                        >
-                            <FiPlus size={20} />
-                            <span>إرسال أول نبضة</span>
-                        </button>
                     </div>
                 )}
             </div>
-
-            {/* Send Pulse Modal */}
-            {showSendPulseModal && (
-                <SendPulseModal
-                    onClose={() => setShowSendPulseModal(false)}
-                    onPulseSent={() => fetchPulses(false)}
-                />
-            )}
         </>
     );
 }

@@ -4,24 +4,16 @@ import { FiActivity, FiUsers, FiHeart, FiTrendingUp } from "react-icons/fi";
 
 const PulseStats = ({ initialStats }) => {
     const [stats, setStats] = useState(initialStats);
-    const [isPolling, setIsPolling] = useState(true);
 
     // تحديث الإحصائيات كل 10 ثوان
-    const { stop, start } = usePoll(
+    usePoll(
         10000,
         {
             only: ["pulseStats"], // فقط تحديث الإحصائيات
             onSuccess: (response) => {
                 if (response.props.pulseStats) {
                     setStats(response.props.pulseStats);
-                    console.log(
-                        "تم تحديث الإحصائيات:",
-                        response.props.pulseStats
-                    );
                 }
-            },
-            onError: (error) => {
-                console.error("خطأ في تحديث الإحصائيات:", error);
             },
         },
         {
@@ -29,15 +21,6 @@ const PulseStats = ({ initialStats }) => {
             autoStart: true,
         }
     );
-
-    const togglePolling = () => {
-        if (isPolling) {
-            stop();
-        } else {
-            start();
-        }
-        setIsPolling(!isPolling);
-    };
 
     const statItems = [
         {
@@ -53,10 +36,10 @@ const PulseStats = ({ initialStats }) => {
             color: "bg-pink-50 border-pink-200",
         },
         {
-            title: "الأصدقاء النشطون",
-            value: stats?.activeFriends || 0,
-            icon: <FiUsers className="text-green-500" />,
-            color: "bg-green-50 border-green-200",
+            title: "غير المقروءة",
+            value: stats?.unreadCount || 0,
+            icon: <FiActivity className="text-orange-500" />,
+            color: "bg-orange-50 border-orange-200",
         },
         {
             title: "معدل التفاعل",
@@ -66,45 +49,35 @@ const PulseStats = ({ initialStats }) => {
         },
     ];
 
+    const additionalStats = [
+        {
+            title: "إجمالي الأصدقاء",
+            value: stats?.totalFriends || 0,
+            icon: <FiUsers className="text-indigo-500" />,
+        },
+        {
+            title: "الأصدقاء النشطون",
+            value: stats?.activeFriends || 0,
+            icon: <FiUsers className="text-green-500" />,
+        },
+        {
+            title: "الدوائر",
+            value: stats?.circlesCount || 0,
+            icon: <FiUsers className="text-pink-500" />,
+        },
+    ];
+
     return (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             {/* Header */}
-            <div className="flex justify-between items-center mb-4">
+            <div className="mb-4">
                 <h2 className="text-xl font-bold text-gray-900">
                     إحصائيات النبضات
                 </h2>
-
-                <div className="flex items-center gap-3">
-                    {/* مؤشر التحديث */}
-                    <div className="flex items-center gap-2">
-                        <div
-                            className={`w-2 h-2 rounded-full ${
-                                isPolling
-                                    ? "bg-green-500 animate-pulse"
-                                    : "bg-gray-400"
-                            }`}
-                        ></div>
-                        <span className="text-xs text-gray-500">
-                            {isPolling ? "مباشر" : "متوقف"}
-                        </span>
-                    </div>
-
-                    {/* زر التحكم */}
-                    <button
-                        onClick={togglePolling}
-                        className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                            isPolling
-                                ? "bg-red-100 text-red-700 hover:bg-red-200"
-                                : "bg-green-100 text-green-700 hover:bg-green-200"
-                        }`}
-                    >
-                        {isPolling ? "إيقاف" : "تشغيل"}
-                    </button>
-                </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Main Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 {statItems.map((item, index) => (
                     <div
                         key={index}
@@ -123,9 +96,26 @@ const PulseStats = ({ initialStats }) => {
                 ))}
             </div>
 
-            {/* Last Update */}
-            <div className="mt-4 text-xs text-gray-500 text-center">
-                آخر تحديث: {new Date().toLocaleTimeString("ar-SA")}
+            {/* Additional Stats */}
+            <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-600 mb-3">
+                    إحصائيات إضافية
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                    {additionalStats.map((item, index) => (
+                        <div key={index} className="text-center">
+                            <div className="flex justify-center mb-2">
+                                {item.icon}
+                            </div>
+                            <div className="text-lg font-bold text-gray-900">
+                                {item.value}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                                {item.title}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

@@ -1,17 +1,6 @@
 import React, { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-    FiActivity,
-    FiCircle,
-    FiHeart,
-    FiUsers,
-    FiEdit2,
-    FiSettings,
-    FiLogOut,
-    FiAward,
-    FiCalendar,
-    FiTrendingUp,
-} from "react-icons/fi";
+import { FiEdit2, FiLogOut } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { Head, usePage } from "@inertiajs/react";
 import MainLayout from "../../Layouts/MainLayout";
@@ -19,77 +8,16 @@ import PulseStats from "../../Components/PulseStats";
 
 const ProfilePage = ({ user }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [activeTab, setActiveTab] = useState("activity");
 
     // الحصول على إحصائيات النبضات
     const pageData = usePage();
     const initialStats = pageData.props.pulseStats;
-
-    const stats = [
-        {
-            id: 1,
-            title: "نبضات مرسلة",
-            count: "156",
-            icon: <FiHeart className="text-pink-500" />,
-        },
-        {
-            id: 2,
-            title: "الدوائر",
-            count: "5",
-            icon: <FiCircle className="text-yellow-400" />,
-        },
-        {
-            id: 3,
-            title: "المتابعون",
-            count: "23",
-            icon: <FiUsers className="text-blue-400" />,
-        },
-    ];
 
     const pulseScore = {
         score: 75,
         level: 3,
         nextMilestone: 100,
     };
-
-    const achievements = [
-        {
-            id: 1,
-            title: "نباض نشط",
-            description: "أرسلت 100 نبضة",
-            icon: <FiAward className="text-yellow-500" />,
-        },
-        {
-            id: 2,
-            title: "مؤثر",
-            description: "حصلت على 50 متابع",
-            icon: <FiTrendingUp className="text-green-500" />,
-        },
-    ];
-
-    const recentActivities = [
-        {
-            id: 1,
-            type: "pulse",
-            title: "آخر نبضة",
-            time: "منذ 5 دقائق",
-            icon: <FiActivity className="text-primary" />,
-        },
-        {
-            id: 2,
-            type: "follower",
-            title: "متابع جديد",
-            time: "منذ ساعة",
-            icon: <FiUsers className="text-blue-400" />,
-        },
-        {
-            id: 3,
-            type: "achievement",
-            title: "إنجاز جديد",
-            time: "منذ يومين",
-            icon: <FiAward className="text-yellow-500" />,
-        },
-    ];
 
     return (
         <>
@@ -151,32 +79,6 @@ const ProfilePage = ({ user }) => {
                                 </div>
                             </div>
                         </div>
-
-                        {/* Achievements Section */}
-                        <div className="bg-white rounded-lg shadow-md p-6">
-                            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                <FiAward className="text-yellow-500" />
-                                الإنجازات
-                            </h2>
-                            <div className="space-y-4">
-                                {achievements.map((achievement) => (
-                                    <div
-                                        key={achievement.id}
-                                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
-                                    >
-                                        {achievement.icon}
-                                        <div>
-                                            <p className="font-medium">
-                                                {achievement.title}
-                                            </p>
-                                            <p className="text-sm text-gray-600">
-                                                {achievement.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
 
                     {/* Right Column - Stats and Activity */}
@@ -185,90 +87,6 @@ const ProfilePage = ({ user }) => {
                         {initialStats && (
                             <PulseStats initialStats={initialStats} />
                         )}
-
-                        {/* Stats Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {stats.map((stat) => (
-                                <motion.div
-                                    key={stat.id}
-                                    className="bg-white rounded-lg shadow-md p-4"
-                                    whileHover={{ scale: 1.02 }}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-gray-600">
-                                                {stat.title}
-                                            </p>
-                                            <p className="text-2xl font-bold text-gray-800">
-                                                {stat.count}
-                                            </p>
-                                        </div>
-                                        <div className="text-2xl">
-                                            {stat.icon}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
-
-                        {/* Activity Tabs */}
-                        <div className="bg-white rounded-lg shadow-md">
-                            <div className="border-b border-gray-200">
-                                <nav className="flex gap-4 p-4">
-                                    <button
-                                        onClick={() => setActiveTab("activity")}
-                                        className={`px-4 py-2 rounded-lg ${
-                                            activeTab === "activity"
-                                                ? "bg-primary text-white"
-                                                : "text-gray-600 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        النشاط
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab("calendar")}
-                                        className={`px-4 py-2 rounded-lg ${
-                                            activeTab === "calendar"
-                                                ? "bg-primary text-white"
-                                                : "text-gray-600 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        التقويم
-                                    </button>
-                                </nav>
-                            </div>
-
-                            <div className="p-6">
-                                {activeTab === "activity" && (
-                                    <div className="space-y-4">
-                                        {recentActivities.map((activity) => (
-                                            <div
-                                                key={activity.id}
-                                                className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
-                                            >
-                                                {activity.icon}
-                                                <div>
-                                                    <p className="font-medium">
-                                                        {activity.title}
-                                                    </p>
-                                                    <p className="text-sm text-gray-600">
-                                                        {activity.time}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {activeTab === "calendar" && (
-                                    <div className="text-center py-8">
-                                        <FiCalendar className="text-4xl text-gray-400 mx-auto mb-4" />
-                                        <p className="text-gray-600">
-                                            سيتم إضافة التقويم قريباً
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

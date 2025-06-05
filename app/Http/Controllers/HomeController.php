@@ -45,40 +45,14 @@ class HomeController extends Controller
             ->where('sender_id', $user->id)
             ->count();
 
-        // النبضات المستقبلة (مباشرة + دوائر)
-        $totalReceived = DB::table('pulses')
-            ->where(function ($query) use ($user) {
-                // النبضات المباشرة
-                $query->where('recipient_id', $user->id)
-                    ->where('type', 'direct');
-            })
-            ->orWhere(function ($query) use ($user) {
-                // النبضات في الدوائر التي ينتمي إليها
-                $query->where('type', 'circle')
-                    ->whereExists(function ($subQuery) use ($user) {
-                        $subQuery->select(DB::raw(1))
-                            ->from('circle_members')
-                            ->where('user_id', $user->id)
-                            ->whereRaw('circle_members.circle_id = JSON_EXTRACT(pulses.metadata, "$.circle_id")');
-                    });
-            })
+        // النبضات المستقبلة (من جدول pulse_recipients)
+        $totalReceived = DB::table('pulse_recipients')
+            ->where('recipient_id', $user->id)
             ->count();
 
         // النبضات غير المقروءة
-        $unreadCount = DB::table('pulses')
-            ->where(function ($query) use ($user) {
-                $query->where('recipient_id', $user->id)
-                    ->where('type', 'direct');
-            })
-            ->orWhere(function ($query) use ($user) {
-                $query->where('type', 'circle')
-                    ->whereExists(function ($subQuery) use ($user) {
-                        $subQuery->select(DB::raw(1))
-                            ->from('circle_members')
-                            ->where('user_id', $user->id)
-                            ->whereRaw('circle_members.circle_id = JSON_EXTRACT(pulses.metadata, "$.circle_id")');
-                    });
-            })
+        $unreadCount = DB::table('pulse_recipients')
+            ->where('recipient_id', $user->id)
             ->whereNull('seen_at')
             ->count();
 
@@ -94,6 +68,18 @@ class HomeController extends Controller
             })
             ->count();
 
+        // إحصائيات إضافية
+        // عدد الدوائر التي ينتمي إليها المستخدم
+        $circlesCount = DB::table('circle_members')
+            ->where('user_id', $user->id)
+            ->count();
+
+        // عدد الأصدقاء الإجمالي
+        $totalFriends = DB::table('user_friendships')
+            ->where('user_id', $user->id)
+            ->where('is_blocked', false)
+            ->count();
+
         // معدل التفاعل (نسبة النبضات المقروءة من المستقبلة)
         $engagementRate = $totalReceived > 0
             ? round((($totalReceived - $unreadCount) / $totalReceived) * 100, 1)
@@ -104,6 +90,8 @@ class HomeController extends Controller
             'totalReceived' => $totalReceived,
             'unreadCount' => $unreadCount,
             'activeFriends' => $activeFriends,
+            'totalFriends' => $totalFriends,
+            'circlesCount' => $circlesCount,
             'engagementRate' => $engagementRate,
         ];
     }
