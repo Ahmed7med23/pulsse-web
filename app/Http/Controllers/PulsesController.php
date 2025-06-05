@@ -576,20 +576,13 @@ class PulsesController extends Controller
     /**
      * Get all reactions for a pulse (mixed types)
      */
-    public function getAllReactions($pulseId)
+    public function getAllReactions(Pulse $pulse)
     {
-        // Check if pulse exists
-        $pulse = Pulse::find($pulseId);
-        if (!$pulse) {
-            return response()->json([
-                'message' => 'النبضة غير موجودة'
-            ], 404);
-        }
 
         // Check if current user has access to see reactions
         $userId = Auth::id();
         $canView = $pulse->sender_id === $userId ||
-            PulseRecipient::where('pulse_id', $pulseId)
+            PulseRecipient::where('pulse_id', $pulse->id)
             ->where('recipient_id', $userId)
             ->exists();
 
@@ -600,7 +593,7 @@ class PulsesController extends Controller
         }
 
         // Get all users who reacted with any reaction type
-        $allReactions = PulseReaction::where('pulse_id', $pulseId)
+        $allReactions = PulseReaction::where('pulse_id', $pulse->id)
             ->with('user:id,name,avatar_url')
             ->orderBy('created_at', 'desc')
             ->get()

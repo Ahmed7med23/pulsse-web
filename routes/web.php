@@ -50,8 +50,8 @@ Route::middleware(['auth', 'verified-user'])->group(function () {
     // Pulses API routes (simplified paths for frontend)
     Route::get('/pulses/all', [PulsesController::class, 'allPulses'])->name('pulses.all');
     Route::post('/pulses/react', [PulsesController::class, 'toggleReaction'])->name('pulses.react');
+    Route::get('/pulses/{pulse}/all-reactions', [PulsesController::class, 'getAllReactions'])->name('pulses.all-reactions');
     Route::get('/pulses/{pulse}/reactions/{reactionType}', [PulsesController::class, 'getReactionUsers'])->name('pulses.reaction-users');
-    Route::get('/pulses/{pulse}/reactions/all', [PulsesController::class, 'getAllReactions'])->name('pulses.all-reactions');
     Route::post('/pulses/{pulse}/mark-seen', [PulsesController::class, 'markAsSeen'])->name('pulses.mark-seen');
 
     // Pulse Reactions

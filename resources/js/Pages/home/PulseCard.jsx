@@ -711,7 +711,7 @@ const AllReactionsModal = ({ pulse, onClose }) => {
                 setError(null);
 
                 const response = await axios.get(
-                    `/pulses/${pulse.id}/reactions/all`,
+                    `/pulses/${pulse.id}/all-reactions`,
                     {
                         headers: {
                             Accept: "application/json",
