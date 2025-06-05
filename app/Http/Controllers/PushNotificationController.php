@@ -372,4 +372,106 @@ class PushNotificationController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * تشخيص سريع لمشكلة عدم وصول الإشعارات
+     */
+    public function quickDiagnose()
+    {
+        $user = Auth::user();
+        $issues = [];
+        $status = 'success';
+
+        try {
+            // فحص 1: VAPID Keys
+            $vapidPublic = config('webpush.vapid.public_key');
+            $vapidPrivate = config('webpush.vapid.private_key');
+            $vapidSubject = config('webpush.vapid.subject');
+
+            if (empty($vapidPublic)) {
+                $issues[] = '❌ VAPID Public Key غير موجود في ملف .env';
+                $status = 'error';
+            }
+
+            if (empty($vapidPrivate)) {
+                $issues[] = '❌ VAPID Private Key غير موجود في ملف .env';
+                $status = 'error';
+            }
+
+            if (empty($vapidSubject)) {
+                $issues[] = '❌ VAPID Subject غير موجود في ملف .env';
+                $status = 'error';
+            }
+
+            // فحص 2: قاعدة البيانات
+            $subscriptionsCount = DB::table('push_subscriptions')
+                ->where('subscribable_id', $user->id)
+                ->where('subscribable_type', get_class($user))
+                ->where('is_active', true)
+                ->count();
+
+            if ($subscriptionsCount === 0) {
+                $issues[] = '❌ لا توجد اشتراكات نشطة في قاعدة البيانات';
+                $status = 'error';
+            }
+
+            // فحص 3: User Model
+            if (!in_array('NotificationChannels\WebPush\HasPushSubscriptions', class_uses($user))) {
+                $issues[] = '❌ User Model لا يحتوي على HasPushSubscriptions trait';
+                $status = 'error';
+            }
+
+            // فحص 4: Extensions مطلوبة
+            $requiredExtensions = ['openssl', 'curl', 'gmp', 'mbstring'];
+            foreach ($requiredExtensions as $ext) {
+                if (!extension_loaded($ext)) {
+                    $issues[] = "❌ PHP Extension مفقود: {$ext}";
+                    $status = 'error';
+                }
+            }
+
+            // فحص 5: WebPush Package
+            if (!class_exists('NotificationChannels\WebPush\WebPushChannel')) {
+                $issues[] = '❌ WebPush Package غير مثبت أو لا يعمل';
+                $status = 'error';
+            }
+
+            if (empty($issues)) {
+                $issues[] = '✅ جميع الإعدادات تبدو صحيحة!';
+
+                // محاولة إرسال إشعار اختباري بسيط
+                try {
+                    $user->notify(new TestPushNotification($user->name));
+                    $issues[] = '✅ تم إرسال إشعار اختباري - يجب أن يصل خلال ثوانٍ';
+                } catch (\Exception $e) {
+                    $issues[] = '❌ فشل إرسال الإشعار: ' . $e->getMessage();
+                    $status = 'error';
+                }
+            }
+
+            return response()->json([
+                'status' => $status,
+                'message' => $status === 'success' ? 'التشخيص مكتمل' : 'تم العثور على مشاكل',
+                'issues' => $issues,
+                'suggestions' => [
+                    '1. تأكد من وجود VAPID keys في ملف .env',
+                    '2. قم بتشغيل: php artisan config:cache',
+                    '3. تأكد من تفعيل الإشعارات في المتصفح',
+                    '4. جرب في متصفح مختلف أو نافذة خاصة'
+                ],
+                'vapid_info' => [
+                    'public_key_length' => strlen($vapidPublic ?? ''),
+                    'has_private_key' => !empty($vapidPrivate),
+                    'subject' => $vapidSubject
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'خطأ في التشخيص',
+                'error' => $e->getMessage(),
+                'issues' => ['❌ ' . $e->getMessage()]
+            ]);
+        }
+    }
 }

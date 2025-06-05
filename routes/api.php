@@ -43,6 +43,7 @@ Route::middleware('auth:web')->group(function () {
     Route::get('/push-notifications/status', [PushNotificationController::class, 'getSubscriptionStatus']);
     Route::post('/push-notifications/test', [PushNotificationController::class, 'sendTestNotification']);
     Route::get('/push-notifications/diagnose', [PushNotificationController::class, 'diagnose']);
+    Route::get('/push-notifications/quick-diagnose', [PushNotificationController::class, 'quickDiagnose']);
     Route::post('/push-notifications/generate-vapid', [PushNotificationController::class, 'generateVapidKeys']);
     Route::post('/push-notifications/test-simple', [PushNotificationController::class, 'testSimpleNotification']);
 });
