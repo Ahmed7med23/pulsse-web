@@ -76,7 +76,17 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                 },
                 onError: (errors) => {
                     console.error("Login failed:", errors);
+                    console.log("Validation errors:", errors);
                     reset("password");
+
+                    // التركيز على الحقل الذي به خطأ
+                    setTimeout(() => {
+                        if (errors.phone) {
+                            document.getElementById("phone")?.focus();
+                        } else if (errors.password) {
+                            document.getElementById("password")?.focus();
+                        }
+                    }, 100);
                 },
             }
         );
@@ -155,22 +165,27 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                 </div>
             </motion.header>
 
-            {/* <p>{JSON.stringify(errors)}</p> */}
-            {message && (
+            {/* عرض أخطاء التحقق */}
+            {(errors.phone || errors.password || errors.email) && (
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`fixed top-4 left-4 right-4 max-w-md mx-auto p-4 rounded-lg shadow-lg ${
-                        message.type === "error"
-                            ? "bg-red-50 text-red-700"
-                            : "bg-green-50 text-green-700"
-                    }`}
+                    className="fixed top-4 left-4 right-4 max-w-md mx-auto p-4 rounded-lg shadow-lg bg-red-50 text-red-700 border border-red-200"
                 >
                     <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">{message.text}</p>
+                        <div className="flex-1">
+                            <p className="text-sm font-medium">
+                                {errors.phone ||
+                                    errors.password ||
+                                    errors.email ||
+                                    "خطأ في بيانات تسجيل الدخول"}
+                            </p>
+                        </div>
                         <button
-                            onClick={() => setMessage(null)}
-                            className="text-gray-400 hover:text-gray-600"
+                            onClick={() => {
+                                // لا يمكن مسح الأخطاء يدوياً، ستختفي عند إعادة الإرسال
+                            }}
+                            className="text-gray-400 hover:text-gray-600 ml-2"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -216,7 +231,11 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                 <form onSubmit={handleSubmit} className="space-y-7">
                     <div
                         style={{ direction: "ltr" }}
-                        className="border border-gray-200 px-4 py-1 rounded-lg items-center justify-center flex flex-row-reverse "
+                        className={`border px-4 py-1 rounded-lg items-center justify-center flex flex-row-reverse ${
+                            errors.phone
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-200"
+                        }`}
                     >
                         <input
                             id="phone"
@@ -224,11 +243,7 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                             placeholder="رقم الهاتف"
                             value={data.phone}
                             onChange={(e) => setData("phone", e.target.value)}
-                            className={`block text-left w-full focus:outline-none placeholder-gray-400 p-2 bg-transparent ${
-                                errors.phone
-                                    ? "border-red-500"
-                                    : "border-gray-200"
-                            }`}
+                            className="block text-left w-full focus:outline-none placeholder-gray-400 p-2 bg-transparent"
                             required
                             autoFocus
                         />
@@ -262,8 +277,12 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                         </button>
                         <Phone className="w-5 h-5 text-gray-400 mr-2" />
                     </div>
+                    {errors.phone && (
+                        <p className="mt-2 text-sm text-red-600 text-right">
+                            {errors.phone}
+                        </p>
+                    )}
 
-                    <p>{errors.phone}</p>
                     {/* Country Modal */}
                     {countryModal && (
                         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
@@ -310,7 +329,13 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                             </div>
                         </div>
                     )}
-                    <div className="border border-gray-200 px-4 py-1 rounded-lg items-center justify-center flex ">
+                    <div
+                        className={`border px-4 py-1 rounded-lg items-center justify-center flex ${
+                            errors.password || errors.phone
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-200"
+                        }`}
+                    >
                         <Lock className="w-5 h-5 text-gray-400" />
                         <input
                             id="password"
@@ -320,16 +345,15 @@ function LoginPage({ status, canResetPassword, countries, flash }) {
                             onChange={(e) =>
                                 setData("password", e.target.value)
                             }
-                            className="block text-right w-full focus:outline-none placeholder-gray-400 p-2"
+                            className="block text-right w-full focus:outline-none placeholder-gray-400 p-2 bg-transparent"
                             required
-                            autoFocus
                         />
-                        {errors.password && (
-                            <p className="mt-1.5 text-xs text-red-600">
-                                {errors.password}
-                            </p>
-                        )}
                     </div>
+                    {errors.password && (
+                        <p className="mt-2 text-sm text-red-600 text-right">
+                            {errors.password}
+                        </p>
+                    )}
 
                     <div>
                         <button

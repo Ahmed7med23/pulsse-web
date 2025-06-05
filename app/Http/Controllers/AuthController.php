@@ -53,9 +53,15 @@ class AuthController extends Controller
         // return Hash::make($request->password);
 
         // التحقق من وجود المستخدم وكلمة المرور
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user) {
             throw ValidationException::withMessages([
-                'phone' => 'بيانات تسجيل الدخول غير صحيحة.',
+                'phone' => 'رقم الهاتف غير موجود. يرجى التأكد من الرقم أو إنشاء حساب جديد.',
+            ]);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.',
             ]);
         }
 
