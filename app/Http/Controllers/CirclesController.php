@@ -48,7 +48,7 @@ class CirclesController extends Controller
 
         // Debug: Add some mock data if no circles exist
         if ($circles->isEmpty()) {
-            $circles = collect([
+            $circlesData = collect([
                 [
                     'id' => 1,
                     'name' => 'دائرة الأصدقاء',
@@ -92,6 +92,47 @@ class CirclesController extends Controller
                     'last_activity' => 'منذ يوم واحد',
                 ]
             ]);
+
+            foreach ($circlesData as $circleInfo) {
+
+                $circle = Circle::create([
+                    'name' => $circleInfo['name'],
+                    'description' => $circleInfo['description'],
+                    'color' => $circleInfo['color'],
+                    'icon' => $circleInfo['icon'],
+                    'privacy_type' =>  'private',
+                    'user_id' => Auth::id(),
+                    'is_active' => true,
+                    'pulse_strength' => 0,
+                    'is_favorite' => false,
+                ]);
+            }
+            $circles = Circle::where('user_id', $userId)
+                ->withCount(['members'])
+                ->latest()
+                ->get()
+                ->map(function ($circle) {
+                    // Calculate pulse count directly
+                    $pulsesCount = DB::table('pulses')
+                        ->where('type', 'circle')
+                        ->whereRaw("JSON_EXTRACT(metadata, '$.circle_id') = ?", [$circle->id])
+                        ->count();
+
+                    return [
+                        'id' => $circle->id,
+                        'name' => $circle->name,
+                        'description' => $circle->description,
+                        'color' => $circle->color,
+                        'icon' => $circle->icon,
+                        'privacy_type' => $circle->privacy_type,
+                        'members_count' => $circle->members_count,
+                        'pulses_count' => $pulsesCount,
+                        'is_favorite' => $circle->is_favorite,
+                        'created_at' => $circle->created_at,
+                        'lastActivity' => $circle->updated_at->diffForHumans(),
+                        'last_activity' => $circle->updated_at->diffForHumans(),
+                    ];
+                });
         }
 
         return Inertia::render('circles/CirclesPage', [
