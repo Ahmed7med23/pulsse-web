@@ -142,6 +142,87 @@ class PushNotificationController extends Controller
     }
 
     /**
+     * إرسال إشعار تجريبي
+     */
+    public function sendTestNotification()
+    {
+        $user = Auth::user();
+
+        try {
+            $subscriptionsCount = DB::table('push_subscriptions')
+                ->where('subscribable_id', $user->id)
+                ->where('subscribable_type', get_class($user))
+                ->where('is_active', true)
+                ->count();
+
+            if ($subscriptionsCount === 0) {
+                return response()->json([
+                    'message' => 'لا توجد اشتراكات نشطة للإشعارات'
+                ], 404);
+            }
+
+            // محاولة إرسال إشعار بطريقة مبسطة
+            Log::info('Attempting to send test notification', [
+                'user_id' => $user->id,
+                'user_has_trait' => in_array('NotificationChannels\WebPush\HasPushSubscriptions', class_uses($user)),
+                'subscriptions_count' => $subscriptionsCount
+            ]);
+
+            // التحقق من VAPID keys
+            $vapidPublic = config('webpush.vapid.public_key');
+            $vapidPrivate = config('webpush.vapid.private_key');
+
+            if (empty($vapidPublic) || empty($vapidPrivate)) {
+                throw new \Exception('VAPID keys are not properly configured');
+            }
+
+            // محاولة إرسال الإشعار
+            try {
+                $user->notify(new TestPushNotification($user->name));
+
+                Log::info('Test notification sent successfully', [
+                    'user_id' => $user->id,
+                    'subscriptions_count' => $subscriptionsCount
+                ]);
+
+                return response()->json([
+                    'message' => 'تم إرسال الإشعار التجريبي بنجاح',
+                    'total_subscriptions' => $subscriptionsCount,
+                ]);
+            } catch (\Exception $notificationError) {
+                Log::error('Notification sending failed', [
+                    'user_id' => $user->id,
+                    'error' => $notificationError->getMessage(),
+                    'vapid_configured' => !empty($vapidPublic) && !empty($vapidPrivate)
+                ]);
+
+                // إرجاع رسالة مفصلة عن الخطأ
+                return response()->json([
+                    'message' => 'فشل في إرسال الإشعار التجريبي',
+                    'error' => $notificationError->getMessage(),
+                    'debug_info' => [
+                        'vapid_public_configured' => !empty($vapidPublic),
+                        'vapid_private_configured' => !empty($vapidPrivate),
+                        'subscriptions_count' => $subscriptionsCount,
+                        'user_has_trait' => in_array('NotificationChannels\WebPush\HasPushSubscriptions', class_uses($user))
+                    ]
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send test notification', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'فشل في إرسال الإشعار التجريبي',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * إرسال إشعار تجريبي مع تتبع مفصل
      */
     public function debugTestNotification()
